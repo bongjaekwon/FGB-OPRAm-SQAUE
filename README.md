@@ -157,13 +157,68 @@ The results of the experiments demonstrate that Fuzzy OPRAm offers a significant
 
 ## References
 
-*   Zadeh, L. A. (1965). Fuzzy sets. *Information and Control, 8*(3), 338-353.
-*   Randell, D. A., Cui, Z., & Cohn, A. G. (1992). A spatial logic based on regions and connection. In *Proceedings of the 3rd International Conference on Knowledge Representation and Reasoning* (pp. 165-176).
-*   Schneider, M. (1999). A spatial SQL for querying imprecise regions. In *Proceedings of the 6th International Symposium on Advances in Spatial Databases* (pp. 327-344).
-*   Clementini, E., Di Felice, P., & Van Oosterom, P. (2000). A model for representing and querying imprecise spatial data. *GeoInformatica, 4*(2), 147-180.
-*   Kontchakov, R., Wolter, F., & Zakharyaschev, M. (2010). A probabilistic spatial logic. *Artificial Intelligence, 174*(1), 1-28.
-*   Dylla, F., Moratz, R., & Wallgrün, J. O. (2012). Fuzzy RCC-8: Representing vague spatial knowledge. *International Journal of Approximate Reasoning, 53*(9), 1305-1322.
-*   Zhou, L., Zhang, J., & Shahabi, C. (2020). Geobert: Emerging trends of spatial language understanding in urban space. In *Proceedings of the 28th International Conference on Advances in Geographic Information Systems* (pp. 545-548).
-*   Fang, Z., Zhang, J., & Shahabi, C. (2021). Spatio-Temporal Transformer for Travel Demand Prediction. In *Proceedings of the 29th International Conference on Advances in Geographic Information Systems*.
-*   Scarselli, F., Gori, M., Tsoi, A. C., Hagenbuchner, M., & Monfardini, G. (2008). Graph neural networks for ranking. *IEEE transactions on neural networks, 20*(2), 270-283.
-```
+Chaves Carniel, A. (2023). Defining and designing spatial queries: the role of spatial relationships. Geo-Spatial Information Science, 27(6), 1868–1892. https://doi.org/10.1080/10095020.2022.2163924
+
+Hui, Y. (2000). Spatial correlation description of deformation object based on fuzzy clustering and geological analysis. Geo-Spatial Information Science, 3(3), 69–72. https://doi.org/10.1007/BF02826613
+
+Fisher, P., Comber, A., & Wadsworth, R. (2006). Approaches to Uncertainty in Spatial Data. In R. Devillers & R. Jeansoulin (Eds.), Fundamentals of Spatial Data Quality (Chapter 3). https://doi.org/10.1002/9780470612156.ch3
+
+Schmid, K. A., & Züfle, A. (2019). Representative Query Answers on Uncertain Data. In Proceedings of the 16th International Symposium on Spatial and Temporal Databases (SSTD '19), 140–149. https://doi.org/10.1145/3340964.3340974
+
+Frentzos, E., Gratsias, K., & Theodoridis, Y. (2009). On the Effect of Location Uncertainty in Spatial Querying. IEEE Transactions on Knowledge and Data Engineering, 21(3), 366–383. https://doi.org/10.1109/TKDE.2008.164
+
+Li, B., Shi, L., & Liu, J. (2010). Research on spatial data mining based on uncertainty in Government GIS. In Proceedings of the 2010 Seventh International Conference on Fuzzy Systems and Knowledge Discovery, 2905–2908. https://doi.org/10.1109/FSKD.2010.5569275
+
+Labourg, P., Destercke, S., Guillaume, R., Rohmer, J., Quost, B., et al. (2024). Geospatial Uncertainties: A Focus on Intervals and Spatial Models Based on Inverse Distance Weighting. In Proceedings of IPMU 2024, 377–388. https://doi.org/10.1007/978-3-031-74003-9_30
+
+Xia, S., Lian, X., & Shao, Y. (2022). Fuzzy Granular-Ball Computing Framework and Its Implementation in SVM. CoRR, abs/2210.11675. https://doi.org/10.48550/arXiv.2210.11675
+
+Moratz, R., & Wallgrün, J. O. (2012). Spatial reasoning with augmented points: Extending cardinal directions with local distances. Journal of Spatial Information Science, 5, 1–30.
+
+Sanchez, M. A., Castillo, O., Castro, J. R., & Melin, P. (2014). Fuzzy granular gravitational clustering algorithm for multivariate data. Information Sciences, 279, 498–511. https://doi.org/10.1016/j.ins.2014.04.005
+
+Metternicht, G. I. (2003). Categorical fuzziness: A comparison between crisp and fuzzy class boundary modelling for mapping salt-affected soils. Ecological Modelling, 168(3), 371–389. https://doi.org/10.1016/S0304-3800(03)00147-9
+
+Zheng, Y., Jestes, J., Phillips, J. M., & Li, F. (2013). Quality and efficiency for kernel density estimates in large data. In Proceedings of SIGMOD '13, 433–444. https://doi.org/10.1145/2463676.2465319
+
+Gao, Y., Xiong, Y., Wang, S., & Wang, H. (2022). GeoBERT: Pre-Training Geospatial Representation Learning on Point-of-Interest. Applied Sciences, 12(24), 12942. https://doi.org/10.3390/app122412942
+
+De Sabbata, S., & Liu, P. (2023). A graph neural network framework for spatial geodemographic classification. IJGIS, 37(12), 2464–2486. https://doi.org/10.1080/13658816.2023.2254382
+
+Paglia, J., Eidsvik, J., & Karvanen, J. (2022). Efficient spatial designs using Hausdorff distances and Bayesian optimization. Scandinavian Journal of Statistics, 49(3), 1060–1084. https://doi.org/10.1111/sjos.12554
+
+Mishra, P., Singh, U., Pandey, C. M., Mishra, P., & Pandey, G. (2019). Application of student's t-test, analysis of variance, and covariance. Annals of Cardiac Anaesthesia, 22(4), 407–411. https://doi.org/10.4103/aca.ACA_94_19
+
+Zadeh, L. A. (1965). Fuzzy sets. Information and Control, 8(3), 338–353. https://doi.org/10.1016/S0019-9958(65)90241-X
+
+Randell, D. A., & Cohn, A. G. (1989). Modelling topological and metrical properties of physical processes. In KR '89, 55–66.
+
+Randell, D. A., Cui, Z., & Cohn, A. G. (1992). A spatial logic based on regions and connection. In KR '92, 165–176.
+
+Dorr, C. H., Latecki, L. J., & Moratz, R. (2015). Shape Similarity Based on the Qualitative Spatial Reasoning Calculus eOPRAm. In COSIT 2015, LNCS 9368, 97–115. https://doi.org/10.1007/978-3-319-23374-1_7
+
+Zufle, A., Trajcevski, G., Pfoser, D., & Kim, J. S. (2020). Managing Uncertainty in Evolving Geo-Spatial Data. In MDM 2020, 5–8. https://doi.org/10.1109/MDM48529.2020.00021
+
+Cheng, R., & Chen, J. (2018). Probabilistic Spatial Queries. In Encyclopedia of Database Systems, 2847–2852. https://doi.org/10.1007/978-1-4614-8265-9_276
+
+Liu, W., Wang, J., & Özsu, M. T. (2012). Spatial Query Processing for Fuzzy Objects. The VLDB Journal, 21(6), 729–751. https://doi.org/10.1007/s00778-012-0266-x
+
+Worboys, M. F. (1998). Fuzzy Set Approaches to Model Uncertainty in Spatial Data and GIS. In Computing with Words in Information/Intelligent Systems 2, 345–367. https://doi.org/10.1007/978-3-7908-1872-7_16
+
+Abdar, M., et al. (2020). A Review of Uncertainty Quantification in Deep Learning: Techniques, Applications and Challenges. arXiv:2011.06225. https://arxiv.org/abs/2011.06225
+
+Connor, C. B., & Connor, L. J. (2009). Estimating spatial density with kernel methods. In Volcanic and Tectonic Hazard Assessment for Nuclear Facilities, 346–368.
+
+Langrené, N., & Warin, X. (2019). Fast and Stable Multivariate Kernel Density Estimation by Fast Sum Updating. Journal of Computational and Graphical Statistics, 28(3), 596–608. https://doi.org/10.1080/10618600.2018.1549052
+
+Schneider, M. (1999). Uncertainty Management for Spatial Data in Databases: Fuzzy Spatial Data Types. In SSD '99, 330–351.
+
+Pauly, A., & Schneider, M. (2008). Spatial vagueness and imprecision in databases. In SAC '08, 875–879. https://doi.org/10.1145/1363686.1363888
+
+Clementini, E., & Di Felice, P. (2001). A spatial model for complex objects with a broad boundary supporting queries on uncertain data. Data & Knowledge Engineering, 37(3), 285–305. https://doi.org/10.1016/S0169-023X(01)00010-6
+
+Kontchakov, R., Pratt-Hartmann, I., Wolter, F., & Zakharyaschev, M. (2010). Spatial logics with connectedness predicates. Logical Methods in Computer Science, 6.
+
+Schockaert, S., De Cock, M., & Kerre, E. E. (2009). Spatial reasoning in a fuzzy region connection calculus. Artificial Intelligence, 173(2), 258–298. https://doi.org/10.1016/j.artint.2008.10.009
+
+Chen, W., Wang, F., & Sun, H. (2021). S2TNet: Spatio-Temporal Transformer Networks for Trajectory Prediction in Autonomous Driving. In ACML 2021, PMLR 157, 454–469. https://proceedings.mlr.press/v157/chen21a.html
