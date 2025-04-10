@@ -96,7 +96,7 @@ The experiments were implemented using Python 3.8, leveraging libraries such as:
 *   Matplotlib
 *   Seaborn
 
-All experiments were run on a machine equipped with an Intel Xeon Gold 6248R CPU, an NVIDIA Tesla V100 GPU, and 128 GB of RAM, running Ubuntu 20.04.
+All experiments were run on a machine equipped with an NVIDIA Geforce 3080 GPU, and 32 GB of RAM, running Fedora 41.
 
 ## Results
 
