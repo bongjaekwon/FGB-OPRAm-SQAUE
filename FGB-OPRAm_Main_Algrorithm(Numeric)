@@ -1,3 +1,20 @@
+# =============================================================================
+# Title: FGB-OPRAm: Integrating Fuzzy Granular-Ball and OPRAm for Spatial Query Answering in Uncertain Environments
+# Authors:
+#   Bongjae Kwon, Department of Civil and Environmental Engineering, Seoul National University, Republic of Korea
+#   Kiyun Yu*, Institute of Engineering Research, Seoul National University, Republic of Korea
+#   *Corresponding author: kiyun@snu.ac.kr
+#
+# Description:
+#   This implementation provides a spatial reasoning framework combining the fuzzy granular-ball model
+#   with OPRAm directional calculus for robust spatial query answering under uncertainty.
+#   The code includes Gaussian-based spatial membership modeling, OPRAm 8-direction inference,
+#   and fuzzy RCC-8 spatial relation inference between uncertain regions.
+#
+# License: MIT (or specify the appropriate license)
+# Repository: https://github.com/bongjaekwon/FGB-OPRAm-SQAUE
+# =============================================================================
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import multivariate_normal
