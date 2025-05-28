@@ -102,7 +102,7 @@ Various spatial queries were used, including:
 
 ### Implementation
 
-The experiments were implemented using Python 3.8, leveraging libraries such as:
+The experiments were implemented using Python 3.12, leveraging libraries such as:
 
 *   GeoPandas
 *   Shapely
