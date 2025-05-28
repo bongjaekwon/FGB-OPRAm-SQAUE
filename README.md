@@ -1,41 +1,65 @@
+# FGB-OPRAm: Integrating Fuzzy Granular-Ball and OPRAm for Spatial Query Answering in Uncertain Environments
 
-# Fuzzy Granular Balls and OPRAm for Spatial Query Answering in Uncertain Environments
+---
 
 ## Overview
 
-This repository contains the code and experimental results for a novel framework that integrates fuzzy granular balls with the OPRAm spatial reasoning calculus to address the problem of spatial query answering in uncertain environments. Traditional methods often fail to capture the inherent imprecision of spatial data, particularly in real-world applications dealing with noisy sensor data, imprecise location reports, or vague spatial descriptions. This framework provides a more robust and flexible solution by leveraging the strengths of both fuzzy logic and qualitative spatial reasoning.
+This repository contains the implementation and experimental results of **FGB-OPRAm**, a novel framework that integrates **fuzzy granular-ball representations** with the **OPRAm spatial reasoning calculus** to address the problem of **spatial query answering under uncertainty**.
+
+Traditional approaches to spatial queries often assume precise locations, which is unrealistic in real-world applications involving noisy sensors, imprecise location reports, or vague spatial descriptions. FGB-OPRAm overcomes these limitations by modeling spatial objects as fuzzy regions using Gaussian membership functions and extending qualitative spatial reasoning with directional and topological relationships.
+
+---
 
 ## Key Concepts
 
-*   **Fuzzy Granular Balls:** Spatial objects are represented as fuzzy regions, where the degree of membership reflects the level of uncertainty associated with the object's location. A Gaussian membership function is used to define the fuzzy region, with the radius of the granular ball directly related to the level of uncertainty.
+| Component              | Description |
+|-----------------------|-------------|
+| **Fuzzy Granular-Balls** | Spatial objects are represented as fuzzy regions where the degree of membership reflects positional uncertainty. A Gaussian function defines the fuzzy boundary. |
+| **OPRAm Calculus**        | A qualitative spatial reasoning framework extended to handle directional relations like "north of" or "southwest of" in uncertain environments. |
+| **Fuzzy Intersection & Containment** | Operations defined on fuzzy granular-balls to compute overlap and inclusion degrees, enabling robust spatial inference under uncertainty. |
 
-*   **OPRAm Spatial Reasoning Calculus:** A qualitative spatial reasoning calculus that provides a formal framework for representing and reasoning about spatial relationships between objects. OPRAm extends the Region Connection Calculus (RCC-8) by incorporating directional information.
+---
 
-*   **Fuzzy OPRAm:** An adaptation of the OPRAm calculus to operate on fuzzy granular balls, defining fuzzy intersection and containment operations that enable reasoning about spatial relationships under uncertainty.
+## Main Contributions
+
+- **FGB-OPRAm Framework**: First integration of fuzzy logic with OPRAm for spatial query answering under uncertainty.
+- **Flexible Uncertainty Modeling**: Uses fuzzy granular-balls with Gaussian membership functions to represent spatial imprecision.
+- **Adapted Qualitative Reasoning**: Extends OPRAm to operate on fuzzy regions, supporting both distance and directional queries.
+- **Comprehensive Evaluation**: Tested on real-world OpenStreetMap data with varying levels of noise and uncertainty, outperforming baselines like KDE, GeoBERT, ST-Transformer, and GNN.
+
+---
 
 ## Methodology
 
-1.  **Fuzzy Granular Ball Representation:** Spatial objects are represented as fuzzy granular balls centered at a location `l = (x, y)` with radius `r`. The membership function `μ_B(x', y')` assigns a degree of membership to each point `(x', y')`:
+### 1. **Fuzzy Granular-Ball Representation**
 
-    ```
-    μ_B(x', y') = e^(-(d(l, (x', y'))^2) / (2σ^2))
-    ```
+Spatial objects are modeled as fuzzy regions centered at location $ l = (x, y) $ with radius $ r $:
+$$
+\mu_B(x', y') = e^{- \frac{d(l, (x', y'))^2}{2\sigma^2}}, \quad \text{where } r = k\sigma
+$$
 
-    where `d(l, (x', y'))` is the Euclidean distance and `σ` is the standard deviation, related to the radius `r` by `r = kσ` (where `k` is a constant, typically 2).
+### 2. **Fuzzy OPRAm Adaptation**
 
-2.  **OPRAm Adaptation:** Fuzzy intersection and containment operations are defined for fuzzy granular balls. For example, the fuzzy intersection of two fuzzy granular balls `A` and `B` is defined as:
+Defines operations for fuzzy intersection and containment:
+- **Intersection**: $ \mu_C(x, y) = \min(\mu_A(x, y), \mu_B(x, y)) $
+- **Containment**: $ \text{Containment}(A, B) = \frac{\int \min(\mu_A, \mu_B)}{\int \mu_A} $
 
-    ```
-    μ_C(x, y) = min(μ_A(x, y), μ_B(x, y))
-    ```
+These allow reasoning about spatial relationships even when object positions are uncertain.
 
-    The fuzzy containment of `A` in `B` is defined as:
+---
 
-    ```
-    Containment(A, B) = (∫ min(μ_A(x, y), μ_B(x, y)) dx dy) / (∫ μ_A(x, y) dx dy)
-    ```
+## Experimental Results (Summary)
 
-    Fuzzy versions of OPRAm relations (e.g., "north of") are defined based on these operations.
+| Experiment | Metric | FGB-OPRAm | Crisp Baseline |
+|-----------|--------|-----------|----------------|
+| Distance-based (50m noise) | F1-score | **0.82** | 0.60 |
+| Directional (25° uncertainty) | Accuracy | **10°** | 65° |
+| Combined (distance + direction) | F1-score | **0.85** | 0.65 |
+| Real-world crime data | F1-score | **0.58** | 0.52 |
+
+FGB-OPRAm consistently outperforms crisp methods and shows strong performance across various types of spatial queries, especially under high uncertainty.
+
+---
 
 ## Experimental Setup
 
@@ -157,68 +181,166 @@ The results of the experiments demonstrate that Fuzzy OPRAm offers a significant
 
 ## References
 
-Chaves Carniel, A. (2023). Defining and designing spatial queries: the role of spatial relationships. Geo-Spatial Information Science, 27(6), 1868–1892. https://doi.org/10.1080/10095020.2022.2163924
+[1] A. Chaves Carniel. “Defining and designing spatial queries: the role of spatial relationships”. In:
+Geo-Spatial Information Science 27.6 (2023), pp. 1868–1892. doi: 10 . 1080 / 10095020 . 2022 .
+2163924. url: https://doi.org/10.1080/10095020.2022.2163924.
 
-Hui, Y. (2000). Spatial correlation description of deformation object based on fuzzy clustering and geological analysis. Geo-Spatial Information Science, 3(3), 69–72. https://doi.org/10.1007/BF02826613
+[2] Y. Hui. “Spatial correlation description of deformation object based on fuzzy clustering and geologi-
+cal analysis”. In: Geo-Spatial Information Science 3.3 (2000), pp. 69–72. doi: 10.1007/BF02826613.
+url: https://doi.org/10.1007/BF02826613.
 
-Fisher, P., Comber, A., & Wadsworth, R. (2006). Approaches to Uncertainty in Spatial Data. In R. Devillers & R. Jeansoulin (Eds.), Fundamentals of Spatial Data Quality (Chapter 3). https://doi.org/10.1002/9780470612156.ch3
+[3] P. Fisher, A. Comber, and R. Wadsworth. “Approaches to Uncertainty in Spatial Data”. In: Funda-
+mentals of Spatial Data Quality. Ed. by R. Devillers and R. Jeansoulin. John Wiley & Sons, 2006.
+Chap. 3. doi: 10.1002/9780470612156.ch3. url: https://doi.org/10.1002/9780470612156.
+ch3.
 
-Schmid, K. A., & Züfle, A. (2019). Representative Query Answers on Uncertain Data. In Proceedings of the 16th International Symposium on Spatial and Temporal Databases (SSTD '19), 140–149. https://doi.org/10.1145/3340964.3340974
+[4] K. A. Schmid and A. Z¨ufle. “Representative Query Answers on Uncertain Data”. In: Proceedings of
+the 16th International Symposium on Spatial and Temporal Databases (SSTD ’19). New York, NY,
+USA: Association for Computing Machinery, 2019, pp. 140–149. doi: 10.1145/3340964.3340974.
+url: https://doi.org/10.1145/3340964.3340974.
 
-Frentzos, E., Gratsias, K., & Theodoridis, Y. (2009). On the Effect of Location Uncertainty in Spatial Querying. IEEE Transactions on Knowledge and Data Engineering, 21(3), 366–383. https://doi.org/10.1109/TKDE.2008.164
+[5] E. Frentzos, K. Gratsias, and Y. Theodoridis. “On the Effect of Location Uncertainty in Spatial
+Querying”. In: IEEE Transactions on Knowledge and Data Engineering 21.3 (2009), pp. 366–383.
+doi: 10.1109/TKDE.2008.164. url: https://doi.org/10.1109/TKDE.2008.164.
 
-Li, B., Shi, L., & Liu, J. (2010). Research on spatial data mining based on uncertainty in Government GIS. In Proceedings of the 2010 Seventh International Conference on Fuzzy Systems and Knowledge Discovery, 2905–2908. https://doi.org/10.1109/FSKD.2010.5569275
+[6] B. Li, L. Shi, and J. Liu. “Research on spatial data mining based on uncertainty in Government
+GIS”. In: Proceedings of the 2010 Seventh International Conference on Fuzzy Systems and Knowl-
+edge Discovery. Yantai, China, 2010, pp. 2905–2908. doi: 10.1109/FSKD.2010.5569275. url:
+https://doi.org/10.1109/FSKD.2010.5569275.
 
-Labourg, P., Destercke, S., Guillaume, R., Rohmer, J., Quost, B., et al. (2024). Geospatial Uncertainties: A Focus on Intervals and Spatial Models Based on Inverse Distance Weighting. In Proceedings of IPMU 2024, 377–388. https://doi.org/10.1007/978-3-031-74003-9_30
+[7] P. Labourg et al. “Geospatial Uncertainties: A Focus on Intervals and Spatial Models Based on
+Inverse Distance Weighting”. In: Proceedings of the 20th International Conference on Information
+Processing and Management of Uncertainty in Knowledge-Based Systems (IPMU 2024). Lisboa,
+Portugal, 2024, pp. 377–388. doi: 10.1007/978-3-031-74003-9_30. url: https://doi.org/10.
+1007/978-3-031-74003-9_30.
 
-Xia, S., Lian, X., & Shao, Y. (2022). Fuzzy Granular-Ball Computing Framework and Its Implementation in SVM. CoRR, abs/2210.11675. https://doi.org/10.48550/arXiv.2210.11675
+[8] Shuyin Xia et al. “Granular-Ball Fuzzy Set and Its Implement in SVM”. In: IEEE Transactions on
+Knowledge and Data Engineering 36.11 (2024), pp. 6293–6304. doi: 10.1109/TKDE.2024.3419184.
 
-Moratz, R., & Wallgrün, J. O. (2012). Spatial reasoning with augmented points: Extending cardinal directions with local distances. Journal of Spatial Information Science, 5, 1–30.
+[9] R. Moratz and J. O. Wallgr¨un. “Spatial reasoning with augmented points: Extending cardinal
+directions with local distances”. In: Journal of Spatial Information Science 5 (2012), pp. 1–30.
 
-Sanchez, M. A., Castillo, O., Castro, J. R., & Melin, P. (2014). Fuzzy granular gravitational clustering algorithm for multivariate data. Information Sciences, 279, 498–511. https://doi.org/10.1016/j.ins.2014.04.005
+[10] M. A. Sanchez et al. “Fuzzy granular gravitational clustering algorithm for multivariate data”.
+In: Information Sciences 279 (2014), pp. 498–511. doi: 10 . 1016 / j . ins . 2014 . 04 . 005. url:
+https://doi.org/10.1016/j.ins.2014.04.005.
 
-Metternicht, G. I. (2003). Categorical fuzziness: A comparison between crisp and fuzzy class boundary modelling for mapping salt-affected soils. Ecological Modelling, 168(3), 371–389. https://doi.org/10.1016/S0304-3800(03)00147-9
+[11] G. I. Metternicht. “Categorical fuzziness: A comparison between crisp and fuzzy class boundary
+modelling for mapping salt-affected soils using Landsat TM data and a classification based on anion
+ratios”. In: Ecological Modelling 168.3 (2003), pp. 371–389. doi: 10.1016/S0304-3800(03)00147-
+9. url: https://doi.org/10.1016/S0304-3800(03)00147-9.21
 
-Zheng, Y., Jestes, J., Phillips, J. M., & Li, F. (2013). Quality and efficiency for kernel density estimates in large data. In Proceedings of SIGMOD '13, 433–444. https://doi.org/10.1145/2463676.2465319
+[12] Y. Zheng et al. “Quality and efficiency for kernel density estimates in large data”. In: Proceedings
+of the 2013 ACM SIGMOD International Conference on Management of Data (SIGMOD ’13).
+New York, NY, USA: Association for Computing Machinery, 2013, pp. 433–444. doi: 10.1145/
+2463676.2465319. url: https://doi.org/10.1145/2463676.2465319.
 
-Gao, Y., Xiong, Y., Wang, S., & Wang, H. (2022). GeoBERT: Pre-Training Geospatial Representation Learning on Point-of-Interest. Applied Sciences, 12(24), 12942. https://doi.org/10.3390/app122412942
+[13] Y. Gao et al. “GeoBERT: Pre-Training Geospatial Representation Learning on Point-of-Interest”.
+In: Applied Sciences 12.24 (2022), p. 12942. doi: 10.3390/app122412942. url: https://doi.
+org/10.3390/app122412942.
 
-De Sabbata, S., & Liu, P. (2023). A graph neural network framework for spatial geodemographic classification. IJGIS, 37(12), 2464–2486. https://doi.org/10.1080/13658816.2023.2254382
+[14] S. De Sabbata and P. Liu. “A graph neural network framework for spatial geodemographic clas-
+sification”. In: International Journal of Geographical Information Science 37.12 (2023), pp. 2464–
+2486. doi: 10.1080/13658816.2023.2254382. url: https://doi.org/10.1080/13658816.2023.
+2254382.
 
-Paglia, J., Eidsvik, J., & Karvanen, J. (2022). Efficient spatial designs using Hausdorff distances and Bayesian optimization. Scandinavian Journal of Statistics, 49(3), 1060–1084. https://doi.org/10.1111/sjos.12554
+[15] J. Paglia, J. Eidsvik, and J. Karvanen. “Efficient spatial designs using Hausdorff distances and
+Bayesian optimization”. In: Scandinavian Journal of Statistics 49.3 (2022), pp. 1060–1084. doi:
+10.1111/sjos.12554. url: https://doi.org/10.1111/sjos.12554.
 
-Mishra, P., Singh, U., Pandey, C. M., Mishra, P., & Pandey, G. (2019). Application of student's t-test, analysis of variance, and covariance. Annals of Cardiac Anaesthesia, 22(4), 407–411. https://doi.org/10.4103/aca.ACA_94_19
+[16] P. Mishra et al. “Application of student’s t-test, analysis of variance, and covariance”. In: Annals
+of Cardiac Anaesthesia 22.4 (2019), pp. 407–411. doi: 10.4103/aca.ACA_94_19. url: https:
+//doi.org/10.4103/aca.ACA_94_19.
 
-Zadeh, L. A. (1965). Fuzzy sets. Information and Control, 8(3), 338–353. https://doi.org/10.1016/S0019-9958(65)90241-X
+[17] L. A. Zadeh. “Fuzzy sets”. In: Information and Control 8.3 (1965), pp. 338–353. doi: 10.1016/
+S0019-9958(65)90241-X. url: https://doi.org/10.1016/S0019-9958(65)90241-X.
 
-Randell, D. A., & Cohn, A. G. (1989). Modelling topological and metrical properties of physical processes. In KR '89, 55–66.
+[18] D. A. Randell and A. G. Cohn. “Modelling topological and metrical properties of physical pro-
+cesses”. In: Proceedings of the First International Conference on the Principles of Knowledge Rep-
+resentation and Reasoning. Ed. by R. J. Brachman, H. J. Levesque, and R. Reiter. Los Altos, CA:
+Morgan Kaufmann, 1989, pp. 55–66.
 
-Randell, D. A., Cui, Z., & Cohn, A. G. (1992). A spatial logic based on regions and connection. In KR '92, 165–176.
+[19] D. A. Randell, Z. Cui, and A. G. Cohn. “A spatial logic based on regions and connection”. In:
+Proceedings of the Third International Conference on the Principles of Knowledge Representation
+and Reasoning. Ed. by B. Nebel, C. Rich, and W. Swartout. Los Altos, CA: Morgan Kaufmann,
+1992, pp. 165–176.
 
-Dorr, C. H., Latecki, L. J., & Moratz, R. (2015). Shape Similarity Based on the Qualitative Spatial Reasoning Calculus eOPRAm. In COSIT 2015, LNCS 9368, 97–115. https://doi.org/10.1007/978-3-319-23374-1_7
+[20] C. H. Dorr, L. J. Latecki, and R. Moratz. “Shape Similarity Based on the Qualitative Spatial
+Reasoning Calculus eOPRAm”. In: Spatial Information Theory. COSIT 2015. Ed. by S. Fabrikant
+et al. Vol. 9368. Lecture Notes in Computer Science. Cham: Springer, 2015, pp. 95–112. doi:
+10.1007/978-3-319-23374-1_7. url: https://doi.org/10.1007/978-3-319-23374-1_7.
 
-Zufle, A., Trajcevski, G., Pfoser, D., & Kim, J. S. (2020). Managing Uncertainty in Evolving Geo-Spatial Data. In MDM 2020, 5–8. https://doi.org/10.1109/MDM48529.2020.00021
+[21] A. Zufle et al. “Managing Uncertainty in Evolving Geo-Spatial Data”. In: Proceedings of the 2020
+21st IEEE International Conference on Mobile Data Management (MDM 2020). Article 9162308.
+IEEE, 2020, pp. 5–8. doi: 10.1109/MDM48529.2020.00021. url: https://doi.org/10.1109/
+MDM48529.2020.00021.
 
-Cheng, R., & Chen, J. (2018). Probabilistic Spatial Queries. In Encyclopedia of Database Systems, 2847–2852. https://doi.org/10.1007/978-1-4614-8265-9_276
+[22] R. Cheng and J. Chen. “Probabilistic Spatial Queries”. In: Encyclopedia of Database Systems.
+Springer, 2018, pp. 2847–2852. doi: 10.1007/978-1-4614-8265-9_276. url: https://doi.org/
+10.1007/978-1-4614-8265-9_276.
 
-Liu, W., Wang, J., & Özsu, M. T. (2012). Spatial Query Processing for Fuzzy Objects. The VLDB Journal, 21(6), 729–751. https://doi.org/10.1007/s00778-012-0266-x
+[23] W. Liu, J. Wang, and M. T. ¨Ozsu. “Spatial Query Processing for Fuzzy Objects”. In: The VLDB
+Journal 21.6 (2012), pp. 729–751. doi: 10.1007/s00778-012-0266-x. url: https://doi.org/
+10.1007/s00778-012-0266-x.
 
-Worboys, M. F. (1998). Fuzzy Set Approaches to Model Uncertainty in Spatial Data and GIS. In Computing with Words in Information/Intelligent Systems 2, 345–367. https://doi.org/10.1007/978-3-7908-1872-7_16
+[24] M. F. Worboys. “Fuzzy Set Approaches to Model Uncertainty in Spatial Data and Geographic
+Information Systems”. In: Computing with Words in Information/Intelligent Systems 2. Springer,
+1998, pp. 345–367. doi: 10.1007/978-3-7908-1872-7_16. url: https://doi.org/10.1007/978-
+3-7908-1872-7_16.
 
-Abdar, M., et al. (2020). A Review of Uncertainty Quantification in Deep Learning: Techniques, Applications and Challenges. arXiv:2011.06225. https://arxiv.org/abs/2011.06225
+[25] M. Abdar et al. A Review of Uncertainty Quantification in Deep Learning: Techniques, Applications
+and Challenges. arXiv preprint arXiv:2011.06225. 2020. url: https://arxiv.org/abs/2011.
+06225.
 
-Connor, C. B., & Connor, L. J. (2009). Estimating spatial density with kernel methods. In Volcanic and Tectonic Hazard Assessment for Nuclear Facilities, 346–368.
+[26] C. B. Connor and L. J. Connor. “Estimating spatial density with kernel methods”. In: Volcanic
+and Tectonic Hazard Assessment for Nuclear Facilities. Ed. by C. B. Connor, N. A. Chapman, and
+L. J. Connor. Cambridge University Press, 2009, pp. 346–368.
 
-Langrené, N., & Warin, X. (2019). Fast and Stable Multivariate Kernel Density Estimation by Fast Sum Updating. Journal of Computational and Graphical Statistics, 28(3), 596–608. https://doi.org/10.1080/10618600.2018.1549052
+[27] N. Langren´e and X. Warin. “Fast and Stable Multivariate Kernel Density Estimation by Fast Sum
+Updating”. In: Journal of Computational and Graphical Statistics 28.3 (2019), pp. 596–608. doi:
+10.1080/10618600.2018.1549052. url: https://doi.org/10.1080/10618600.2018.1549052.
 
-Schneider, M. (1999). Uncertainty Management for Spatial Data in Databases: Fuzzy Spatial Data Types. In SSD '99, 330–351.
+[28] M. Schneider. “Uncertainty Management for Spatial Data in Databases: Fuzzy Spatial Data Types”.
+In: Proceedings of the 6th International Symposium on Advances in Spatial Databases (SSD ’99).
+Berlin, Heidelberg: Springer-Verlag, 1999, pp. 330–351.22
 
-Pauly, A., & Schneider, M. (2008). Spatial vagueness and imprecision in databases. In SAC '08, 875–879. https://doi.org/10.1145/1363686.1363888
+[29] A. Pauly and M. Schneider. “Spatial Vagueness and Imprecision in Databases”. In: Proceedings of
+the 2008 ACM Symposium on Applied Computing (SAC ’08). New York, NY, USA: Association
+for Computing Machinery, 2008, pp. 875–879. doi: 10 . 1145 / 1363686 . 1363888. url: https :
+//doi.org/10.1145/1363686.1363888.
 
-Clementini, E., & Di Felice, P. (2001). A spatial model for complex objects with a broad boundary supporting queries on uncertain data. Data & Knowledge Engineering, 37(3), 285–305. https://doi.org/10.1016/S0169-023X(01)00010-6
+[30] E. Clementini and P. Di Felice. “A Spatial Model for Complex Objects with a Broad Boundary
+Supporting Queries on Uncertain Data”. In: Data & Knowledge Engineering 37.3 (2001), pp. 285–
+305. doi: 10 . 1016 / S0169 - 023X(01 ) 00010 - 6. url: https : / / doi . org / 10 . 1016 / S0169 -
+023X(01)00010-6.
 
-Kontchakov, R., Pratt-Hartmann, I., Wolter, F., & Zakharyaschev, M. (2010). Spatial logics with connectedness predicates. Logical Methods in Computer Science, 6.
+[31] R. Kontchakov et al. “Spatial logics with connectedness predicates”. In: Logical Methods in Com-
+puter Science 6 (2010). url: https://doi.org/10.2168/LMCS-6(3:7)2010.
 
-Schockaert, S., De Cock, M., & Kerre, E. E. (2009). Spatial reasoning in a fuzzy region connection calculus. Artificial Intelligence, 173(2), 258–298. https://doi.org/10.1016/j.artint.2008.10.009
+[32] S. Schockaert, M. De Cock, and E. E. Kerre. “Spatial reasoning in a fuzzy region connection
+calculus”. In: Artificial Intelligence 173.2 (2009), pp. 258–298. doi: 10.1016/j.artint.2008.10.
+009. url: https://doi.org/10.1016/j.artint.2008.10.009.
 
-Chen, W., Wang, F., & Sun, H. (2021). S2TNet: Spatio-Temporal Transformer Networks for Trajectory Prediction in Autonomous Driving. In ACML 2021, PMLR 157, 454–469. https://proceedings.mlr.press/v157/chen21a.html
+[33] W. Chen, F. Wang, and H. Sun. “S2TNet: Spatio-Temporal Transformer Networks for Trajectory
+Prediction in Autonomous Driving”. In: Proceedings of The 13th Asian Conference on Machine
+Learning. Vol. 157. Proceedings of Machine Learning Research. 2021, pp. 454–469. url: https:
+//proceedings.mlr.press/v157/chen21a.html.
+
+[34] Jiang Xie et al. “MGNR: A Multi-Granularity Neighbor Relationship and Its Application in KNN
+Classification and Clustering Methods”. In: IEEE Transactions on Pattern Analysis and Machine
+Intelligence 46.12 (2024), pp. 7956–7972. doi: 10.1109/TPAMI.2024.3400281.
+
+[35] Jiashun Liu et al. “Unlock the cognitive generalization of deep reinforcement learning via granular
+ball representation”. In: Proceedings of the 41st International Conference on Machine Learning.
+ICML’24. Vienna, Austria: JMLR.org, 2024.
+
+[36] Xuemei Cao et al. “Open Continual Feature Selection via Granular-Ball Knowledge Transfer”. In:
+IEEE Transactions on Knowledge & Data Engineering 36.12 (2024), pp. 8967–8980. issn: 1558-
+2191. doi: 10.1109/TKDE.2024.3428485. url: https://doi.ieeecomputersociety.org/10.1109/TKDE.2024.3428485.
+
+[37] Yihao et al. “GRICP: Granular-Ball Iterative Closest Point with Multikernel Correntropy for Point
+Cloud Fine Registration”. In: Proceedings of the AAAI Conference on Artificial Intelligence 39.2
+(2025), pp. 1710–1718. doi: 10.1609/aaai.v39i2.32164. url: https://ojs.aaai.org/index.php/AAAI/article/view/32164.
+
+[38] Peng Su et al. “Multi-view Granular-ball Contrastive Clustering”. In: Proceedings of the AAAI
+Conference on Artificial Intelligence 39.19 (2025), pp. 20637–20645. doi: 10.1609/aaai.v39i19.
+34274. url: https://ojs.aaai.org/index.php/AAAI/article/view/34274
