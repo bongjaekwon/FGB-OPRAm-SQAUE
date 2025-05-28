@@ -1,0 +1,163 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import multivariate_normal
+from matplotlib.patches import Ellipse
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+import math
+
+
+# ----------------------------
+# Core Fuzzy Granular Ball
+# ----------------------------
+class FuzzyGranularBall:
+    def __init__(self, center, uncertainty_radius):
+        self.center = np.array(center)
+        self.uncertainty_radius = uncertainty_radius
+        self.cov_matrix = self._create_covariance_matrix()
+
+    def _create_covariance_matrix(self):
+        var = (self.uncertainty_radius / 3) ** 2
+        return np.array([[var, 0], [0, var]])
+
+    def membership(self, point):
+        return multivariate_normal.pdf(point, mean=self.center, cov=self.cov_matrix)
+
+    def membership_grid(self, X, Y):
+        pos = np.dstack((X, Y))
+        rv = multivariate_normal(self.center, self.cov_matrix)
+        return rv.pdf(pos)
+
+
+# ----------------------------
+# Direction and RCC-8 Logic
+# ----------------------------
+def calculate_direction(a, b, geodetic=False):
+    if geodetic:
+        lat1, lon1 = map(math.radians, a)
+        lat2, lon2 = map(math.radians, b)
+        dlon = lon2 - lon1
+        y = math.sin(dlon) * math.cos(lat2)
+        x = math.cos(lat1)*math.sin(lat2) - math.sin(lat1)*math.cos(lat2)*math.cos(dlon)
+        bearing = math.degrees(math.atan2(y, x))
+        return (bearing + 360) % 360
+    else:
+        dx = b[0] - a[0]
+        dy = b[1] - a[1]
+        return (np.degrees(np.arctan2(dy, dx)) + 360) % 360
+
+def op_ram_direction(bearing):
+    directions = {
+        'N':  (337.5, 22.5), 'NE': (22.5, 67.5),
+        'E':  (67.5, 112.5), 'SE': (112.5, 157.5),
+        'S':  (157.5, 202.5), 'SW': (202.5, 247.5),
+        'W':  (247.5, 292.5), 'NW': (292.5, 337.5)
+    }
+    probs = {}
+    for k, (start, end) in directions.items():
+        if start <= end:
+            in_sector = start <= bearing < end
+        else:
+            in_sector = bearing >= start or bearing < end
+        if in_sector:
+            probs[k] = 1.0
+        else:
+            diff = min(abs(bearing - start), abs(bearing - end), 360 - abs(bearing - start))
+            probs[k] = math.exp(-diff**2 / 1000)
+    return probs
+
+def rcc8_relation(ball1, ball2):
+    dist = np.linalg.norm(ball1.center - ball2.center)
+    overlap = max(0, ball1.uncertainty_radius + ball2.uncertainty_radius - dist)
+    if overlap > 0.8 * min(ball1.uncertainty_radius, ball2.uncertainty_radius):
+        return "EQ" if np.allclose(ball1.center, ball2.center) else "PO"
+    elif overlap > 0:
+        return "EC"
+    else:
+        return "DC"
+
+
+# ----------------------------
+# Unified Visualizer
+# ----------------------------
+def visualize_fgb(a_center, b_center, uncertainty1=1.5, uncertainty2=1.5,
+                  is_geodetic=False, grid_size=300, xlim=None, ylim=None):
+    
+    ball1 = FuzzyGranularBall(a_center, uncertainty1)
+    ball2 = FuzzyGranularBall(b_center, uncertainty2)
+
+    # Coordinate bounds
+    if xlim is None:
+        margin = max(uncertainty1, uncertainty2) * 4
+        x_min = min(a_center[0], b_center[0]) - margin
+        x_max = max(a_center[0], b_center[0]) + margin
+        y_min = min(a_center[1], b_center[1]) - margin
+        y_max = max(a_center[1], b_center[1]) + margin
+        xlim = (x_min, x_max)
+        ylim = (y_min, y_max)
+
+    x = np.linspace(*xlim, grid_size)
+    y = np.linspace(*ylim, grid_size)
+    X, Y = np.meshgrid(x, y)
+    Z1 = ball1.membership_grid(X, Y)
+    Z2 = ball2.membership_grid(X, Y)
+    Z_inter = np.minimum(Z1, Z2)
+
+    containment = np.sum(Z_inter) / np.sum(Z1)
+    bearing = calculate_direction(a_center, b_center, geodetic=is_geodetic)
+    op_dir = op_ram_direction(bearing)
+    rcc = rcc8_relation(ball1, ball2)
+
+    # Visualization
+    fig, ax = plt.subplots(figsize=(10, 8))
+    ax.contourf(X, Y, Z1, levels=20, cmap='Blues', alpha=0.5)
+    ax.contourf(X, Y, Z2, levels=20, cmap='Reds', alpha=0.5)
+    im = ax.contourf(X, Y, Z_inter, levels=20, cmap='Greens', alpha=0.6)
+
+    ax.scatter(*a_center, color='blue', label='A (blue)', zorder=5)
+    ax.scatter(*b_center, color='red', label='B (red)', zorder=5)
+    ax.annotate("", xy=b_center, xytext=a_center, arrowprops=dict(facecolor='black', arrowstyle='->'), zorder=6)
+
+    mid_x, mid_y = (np.array(a_center) + np.array(b_center)) / 2
+    info_text = f"Direction: {bearing:.1f}°\nRCC-8: {rcc}\nContainment: {containment:.2f}"
+    ax.text(mid_x, mid_y + max(uncertainty1, uncertainty2) * 2,
+            info_text, fontsize=11, ha='center', bbox=dict(boxstyle="round", facecolor="white"))
+
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.set_aspect('equal')
+    ax.set_title("FGB-OPRAm Spatial Reasoning")
+    ax.set_xlabel("Latitude" if is_geodetic else "X")
+    ax.set_ylabel("Longitude" if is_geodetic else "Y")
+    ax.legend()
+    ax.grid(True, linestyle='--', alpha=0.5)
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="3%", pad=0.1)
+    plt.colorbar(im, cax=cax, label="Intersection (min)")
+    plt.show()
+
+    return {
+        "bearing": bearing,
+        "opram_distribution": op_dir,
+        "containment": containment,
+        "rcc8": rcc
+    }
+
+
+# ----------------------------
+# Example Usage (Cartesian)
+# ----------------------------
+if __name__ == "__main__":
+    result = visualize_fgb(
+        a_center=(0, 0),
+        b_center=(5, 4),
+        uncertainty1=1.5,
+        uncertainty2=1.5,
+        is_geodetic=False
+    )
+
+    print("FGB-OPRAm Reasoning Result:")
+    print(f"Bearing: {result['bearing']:.1f}°")
+    print(f"OPRAm Distribution: {result['opram_distribution']}")
+    print(f"Containment: {result['containment']:.2f}")
+    print(f"RCC-8 Relation: {result['rcc8']}")
