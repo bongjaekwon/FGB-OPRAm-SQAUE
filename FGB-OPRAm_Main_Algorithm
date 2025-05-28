@@ -1,0 +1,159 @@
+# =============================================================================
+# Title: FGB-OPRAm: Integrating Fuzzy Granular-Ball and OPRAm for Spatial Query Answering in Uncertain Environments
+# Authors:
+#   Bongjae Kwon, Department of Civil and Environmental Engineering, Seoul National University, Republic of Korea
+#   Kiyun Yu*, Institute of Engineering Research, Seoul National University, Republic of Korea
+#   *Corresponding author: kiyun@snu.ac.kr
+#
+# Description:
+#   This implementation provides a spatial reasoning framework combining the fuzzy granular-ball model
+#   with OPRAm directional calculus for robust spatial query answering under uncertainty.
+#   The code includes Gaussian-based spatial membership modeling, OPRAm 8-direction inference,
+#   and fuzzy RCC-8 spatial relation inference between uncertain regions.
+#
+# License: MIT (or specify the appropriate license)
+# Repository: https://github.com/bongjaekwon/FGB-OPRAm-SQAUE
+# =============================================================================
+
+
+import numpy as np
+import math
+from scipy.stats import multivariate_normal
+import matplotlib.pyplot as plt
+
+class FuzzyGranularBall:
+    def __init__(self, center, uncertainty_radius):
+        self.center = np.array(center)  # [lat, lon]
+        self.uncertainty_radius = uncertainty_radius  # uncertainty radius in meters
+        self.cov_matrix = self._create_covariance_matrix()
+   
+    def _create_covariance_matrix(self):
+        """Generate a 2D Gaussian covariance matrix"""
+        var = (self.uncertainty_radius / 3) ** 2  # confidence interval
+        return np.array([[var, 0], [0, var]])
+   
+    def membership(self, point):
+        """Probability that a point belongs to this granular ball"""
+        return multivariate_normal.pdf(
+            point,
+            mean=self.center,
+            cov=self.cov_matrix
+        )
+
+def calculate_direction(lat1, lon1, lat2, lon2):
+    """Calculate direction between two coordinates (0–360 degrees)"""
+    dlon = math.radians(lon2 - lon1)
+    lat1, lat2 = math.radians(lat1), math.radians(lat2)
+   
+    y = math.sin(dlon) * math.cos(lat2)
+    x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
+    bearing = math.degrees(math.atan2(y, x))
+    return (bearing + 360) % 360
+
+def op_ram_direction(bearing):
+    """OPRAm directional classification (8-directional probability distribution)"""
+    sectors = {
+        'N':  (337.5, 22.5),
+        'NE': (22.5, 67.5),
+        'E':  (67.5, 112.5),
+        'SE': (112.5, 157.5),
+        'S':  (157.5, 202.5),
+        'SW': (202.5, 247.5),
+        'W':  (247.5, 292.5),
+        'NW': (292.5, 337.5)
+    }
+   
+    probabilities = {}
+    for dir_name, (start, end) in sectors.items():
+        if start <= bearing < end or (start > end and (bearing >= start or bearing < end)):
+            probabilities[dir_name] = 1.0
+        else:
+            # Gaussian probability
+            diff = min(abs(bearing - start), abs(bearing - end), 360 - abs(bearing - start))
+            probabilities[dir_name] = math.exp(-diff**2 / 1000)
+   
+    return probabilities
+
+def rcc8_relation(ball1, ball2):
+    """Compute extended RCC-8 relation (DC, EC, PO, TPP, etc.)"""
+    distance = math.sqrt(sum((ball1.center - ball2.center)**2))
+    radius_sum = ball1.uncertainty_radius + ball2.uncertainty_radius
+   
+    # Fuzzy overlap computation
+    overlap = max(0, radius_sum - distance)
+   
+    if overlap > 0.8 * min(ball1.uncertainty_radius, ball2.uncertainty_radius):
+        return "EQ" if np.allclose(ball1.center, ball2.center) else "PO"
+    elif overlap > 0:
+        return "EC"
+    else:
+        return "DC"
+
+def analyze_spatial_relation(lat1, lon1, lat2, lon2, uncertainty1=50, uncertainty2=50):
+    """Comprehensive spatial relation analysis"""
+    ball1 = FuzzyGranularBall([lat1, lon1], uncertainty1)
+    ball2 = FuzzyGranularBall([lat2, lon2], uncertainty2)
+   
+    bearing = calculate_direction(lat1, lon1, lat2, lon2)
+    op_ram = op_ram_direction(bearing)
+    rcc = rcc8_relation(ball1, ball2)
+   
+    return {
+        "bearing": bearing,
+        "op_ram_direction": op_ram,
+        "rcc8_relation": rcc,
+        "distance_meters": math.sqrt(sum((ball1.center - ball2.center)**2)) * 111319.5  # approximate conversion
+    }
+
+def visualize_relations(ball1, ball2):
+    """Visualize spatial relationships"""
+    x = np.linspace(min(ball1.center[0], ball2.center[0]) - 0.01,
+                    max(ball1.center[0], ball2.center[0]) + 0.01, 100)
+    y = np.linspace(min(ball1.center[1], ball2.center[1]) - 0.01,
+                    max(ball1.center[1], ball2.center[1]) + 0.01, 100)
+    X, Y = np.meshgrid(x, y)
+    pos = np.dstack((X, Y))
+   
+    Z1 = np.zeros_like(X)
+    Z2 = np.zeros_like(X)
+   
+    for i in range(X.shape[0]):
+        for j in range(X.shape[1]):
+            Z1[i,j] = ball1.membership(pos[i,j])
+            Z2[i,j] = ball2.membership(pos[i,j])
+   
+    plt.figure(figsize=(10, 8))
+    plt.contourf(X, Y, Z1, levels=20, cmap='Blues', alpha=0.5)
+    plt.contourf(X, Y, Z2, levels=20, cmap='Greens', alpha=0.5)
+   
+    # Direction vector
+    plt.quiver(ball1.center[0], ball1.center[1],
+              ball2.center[0]-ball1.center[0],
+              ball2.center[1]-ball1.center[1],
+              scale=100, color='red')
+   
+    plt.scatter(*ball1.center, c='blue', label='Point 1')
+    plt.scatter(*ball2.center, c='green', label='Point 2')
+    plt.legend()
+    plt.title("Fuzzy Granular-Ball Spatial Relationship")
+    plt.xlabel("Latitude")
+    plt.ylabel("Longitude")
+    plt.grid(True)
+    plt.show()
+
+# Example usage
+result = analyze_spatial_relation(
+    lat1=37.5665, lon1=126.9780,  # Seoul
+    lat2=37.4563, lon2=126.7052,  # Suwon
+    uncertainty1=100, uncertainty2=150
+)
+
+print("Spatial Relationship Result:")
+print(f"Bearing: {result['bearing']:.1f}°")
+print(f"OPRAm Directional Distribution: {result['op_ram_direction']}")
+print(f"RCC-8 Relation: {result['rcc8_relation']}")
+print(f"Distance: {result['distance_meters']/1000:.1f} km")
+
+ball1 = FuzzyGranularBall([37.5665, 126.9780], 100)
+ball2 = FuzzyGranularBall([37.4563, 126.7052], 150)
+visualize_relations(ball1, ball2)
