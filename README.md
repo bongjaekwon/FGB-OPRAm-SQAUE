@@ -1,6 +1,5 @@
 # FGB-OPRAm: Integrating Fuzzy Granular-Ball and OPRAm for Spatial Query Answering in Uncertain Environments
 
----
 
 ## Overview
 
