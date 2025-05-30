@@ -15,145 +15,218 @@
 # Repository: https://github.com/bongjaekwon/FGB-OPRAm-SQAUE
 # =============================================================================
 
-
-import numpy as np
 import math
-from scipy.stats import multivariate_normal
+import numpy as np
 import matplotlib.pyplot as plt
+from scipy.cluster.vq import kmeans2
 
-class FuzzyGranularBall:
-    def __init__(self, center, uncertainty_radius):
-        self.center = np.array(center)  # [lat, lon]
-        self.uncertainty_radius = uncertainty_radius  # uncertainty radius in meters
-        self.cov_matrix = self._create_covariance_matrix()
-   
-    def _create_covariance_matrix(self):
-        """Generate a 2D Gaussian covariance matrix"""
-        var = (self.uncertainty_radius / 3) ** 2  # confidence interval
-        return np.array([[var, 0], [0, var]])
-   
-    def membership(self, point):
-        """Probability that a point belongs to this granular ball"""
-        return multivariate_normal.pdf(
-            point,
-            mean=self.center,
-            cov=self.cov_matrix
-        )
+# Earth's radius in kilometers
+EARTH_RADIUS_KM = 6371.0
 
-def calculate_direction(lat1, lon1, lat2, lon2):
-    """Calculate direction between two coordinates (0–360 degrees)"""
-    dlon = math.radians(lon2 - lon1)
-    lat1, lat2 = math.radians(lat1), math.radians(lat2)
-   
-    y = math.sin(dlon) * math.cos(lat2)
-    x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
-    bearing = math.degrees(math.atan2(y, x))
-    return (bearing + 360) % 360
+class GranularBall:
+    """
+    Represents a fuzzy granular ball with a Gaussian membership function.
+    Each ball is centered at a geographic coordinate (lat, lon) with spread sigma (in km).
+    """
+    def __init__(self, center, sigma):
+        self.center = tuple(center)  # (latitude, longitude)
+        self.sigma = float(sigma)    # Standard deviation of the Gaussian (km)
 
-def op_ram_direction(bearing):
-    """OPRAm directional classification (8-directional probability distribution)"""
-    sectors = {
-        'N':  (337.5, 22.5),
-        'NE': (22.5, 67.5),
-        'E':  (67.5, 112.5),
-        'SE': (112.5, 157.5),
-        'S':  (157.5, 202.5),
-        'SW': (202.5, 247.5),
-        'W':  (247.5, 292.5),
-        'NW': (292.5, 337.5)
-    }
-   
-    probabilities = {}
-    for dir_name, (start, end) in sectors.items():
-        if start <= bearing < end or (start > end and (bearing >= start or bearing < end)):
-            probabilities[dir_name] = 1.0
+    def membership(self, coord):
+        """
+        Compute the Gaussian membership of a coordinate relative to this ball.
+        Uses the Haversine distance and μ = exp(-d^2 / (2 * σ^2)).
+        """
+        lat1, lon1 = self.center
+        lat2, lon2 = coord
+
+        # Convert degrees to radians
+        φ1, φ2 = math.radians(lat1), math.radians(lat2)
+        Δφ = φ2 - φ1
+        Δλ = math.radians(lon2 - lon1)
+
+        # Haversine distance
+        a = math.sin(Δφ/2)**2 + math.cos(φ1) * math.cos(φ2) * math.sin(Δλ/2)**2
+        c = 2 * math.asin(math.sqrt(a))
+        d = EARTH_RADIUS_KM * c
+
+        return math.exp(-(d ** 2) / (2 * self.sigma ** 2)) if self.sigma > 0 else 1.0
+
+def generate_fuzzy_granular_balls(points, n_clusters, sigma=None):
+    """
+    Cluster the given points and create a list of fuzzy granular balls.
+
+    Args:
+        points: list of (lat, lon) coordinates
+        n_clusters: number of granular balls to generate
+        sigma: fixed spread value for all balls (if None, estimate from cluster std)
+
+    Returns:
+        List of GranularBall objects
+    """
+    data = np.array(points, dtype=float)
+    centroids, labels = kmeans2(data, n_clusters, minit='++')
+
+    balls = []
+    for i, center in enumerate(centroids):
+        cluster_points = data[labels == i]
+        if len(cluster_points) == 0:
+            continue
+        if sigma is not None:
+            sigma_i = sigma
         else:
-            # Gaussian probability
-            diff = min(abs(bearing - start), abs(bearing - end), 360 - abs(bearing - start))
-            probabilities[dir_name] = math.exp(-diff**2 / 1000)
-   
-    return probabilities
+            dists = []
+            for lat, lon in cluster_points:
+                φ1, φ2 = math.radians(center[0]), math.radians(lat)
+                Δφ = φ2 - φ1
+                Δλ = math.radians(lon - center[1])
+                a = math.sin(Δφ/2)**2 + math.cos(φ1) * math.cos(φ2) * math.sin(Δλ/2)**2
+                c = 2 * math.asin(math.sqrt(a))
+                dists.append(EARTH_RADIUS_KM * c)
+            sigma_i = float(np.std(dists))
+            sigma_i = max(sigma_i, 1e-6)
+        balls.append(GranularBall(center, sigma_i))
+    return balls
 
-def rcc8_relation(ball1, ball2):
-    """Compute extended RCC-8 relation (DC, EC, PO, TPP, etc.)"""
-    distance = math.sqrt(sum((ball1.center - ball2.center)**2))
-    radius_sum = ball1.uncertainty_radius + ball2.uncertainty_radius
-   
-    # Fuzzy overlap computation
-    overlap = max(0, radius_sum - distance)
-   
-    if overlap > 0.8 * min(ball1.uncertainty_radius, ball2.uncertainty_radius):
-        return "EQ" if np.allclose(ball1.center, ball2.center) else "PO"
-    elif overlap > 0:
-        return "EC"
-    else:
-        return "DC"
+def fuzzy_intersection_membership(coord, ballA, ballB):
+    """
+    Compute the fuzzy intersection membership at a coordinate (min of memberships).
+    """
+    return min(ballA.membership(coord), ballB.membership(coord))
 
-def analyze_spatial_relation(lat1, lon1, lat2, lon2, uncertainty1=50, uncertainty2=50):
-    """Comprehensive spatial relation analysis"""
-    ball1 = FuzzyGranularBall([lat1, lon1], uncertainty1)
-    ball2 = FuzzyGranularBall([lat2, lon2], uncertainty2)
-   
-    bearing = calculate_direction(lat1, lon1, lat2, lon2)
-    op_ram = op_ram_direction(bearing)
-    rcc = rcc8_relation(ball1, ball2)
-   
-    return {
-        "bearing": bearing,
-        "op_ram_direction": op_ram,
-        "rcc8_relation": rcc,
-        "distance_meters": math.sqrt(sum((ball1.center - ball2.center)**2)) * 111319.5  # approximate conversion
-    }
+def fuzzy_overlap(ballA, ballB, resolution=100):
+    """
+    Estimate fuzzy overlap between two granular balls using grid sampling.
 
-def visualize_relations(ball1, ball2):
-    """Visualize spatial relationships"""
-    x = np.linspace(min(ball1.center[0], ball2.center[0]) - 0.01,
-                    max(ball1.center[0], ball2.center[0]) + 0.01, 100)
-    y = np.linspace(min(ball1.center[1], ball2.center[1]) - 0.01,
-                    max(ball1.center[1], ball2.center[1]) + 0.01, 100)
-    X, Y = np.meshgrid(x, y)
-    pos = np.dstack((X, Y))
-   
-    Z1 = np.zeros_like(X)
-    Z2 = np.zeros_like(X)
-   
-    for i in range(X.shape[0]):
-        for j in range(X.shape[1]):
-            Z1[i,j] = ball1.membership(pos[i,j])
-            Z2[i,j] = ball2.membership(pos[i,j])
-   
+    Returns:
+        Normalized overlap value in [0, 1].
+    """
+    latA, lonA = ballA.center
+    latB, lonB = ballB.center
+    max_sigma = max(ballA.sigma, ballB.sigma)
+
+    lat_offset = (3 * max_sigma) / 111.0
+    lon_offset = (3 * max_sigma) / (111.0 * math.cos(math.radians((latA + latB) / 2.0) or 1.0))
+
+    lat_min = min(latA, latB) - lat_offset
+    lat_max = max(latA, latB) + lat_offset
+    lon_min = min(lonA, lonB) - lon_offset
+    lon_max = max(lonA, lonB) + lon_offset
+
+    lat_vals = np.linspace(lat_min, lat_max, resolution)
+    lon_vals = np.linspace(lon_min, lon_max, resolution)
+
+    intersection = 0.0
+    union = 0.0
+    dlat = (lat_max - lat_min) / (resolution - 1)
+    dlon = (lon_max - lon_min) / (resolution - 1)
+
+    for φ in lat_vals:
+        for λ in lon_vals:
+            μA = ballA.membership((φ, λ))
+            μB = ballB.membership((φ, λ))
+            area = (math.radians(dlat) * EARTH_RADIUS_KM) * \
+                   (math.radians(dlon) * EARTH_RADIUS_KM * math.cos(math.radians(φ)))
+            intersection += min(μA, μB) * area
+            union += max(μA, μB) * area
+    return (intersection / union) if union > 0 else 0.0
+
+def qualitative_direction(pointA, pointB):
+    """
+    Determine compass direction (N, NE, E, etc.) from pointA to pointB.
+    """
+    lat1, lon1 = pointA
+    lat2, lon2 = pointB
+
+    if lat1 == lat2 and lon1 == lon2:
+        return None  # Same point
+
+    φ1, φ2 = math.radians(lat1), math.radians(lat2)
+    Δλ = math.radians(lon2 - lon1)
+
+    y = math.sin(Δλ) * math.cos(φ2)
+    x = math.cos(φ1) * math.sin(φ2) - math.sin(φ1) * math.cos(φ2) * math.cos(Δλ)
+    θ = math.atan2(y, x)
+    bearing = (math.degrees(θ) + 360) % 360
+
+    directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+    index = int(((bearing + 22.5) % 360) / 45)
+    return directions[index]
+
+def visualize_fuzzy_balls(ballA, ballB, resolution=200):
+    """
+    Visualize two fuzzy granular balls and their intersection in 2D.
+    """
+    latA, lonA = ballA.center
+    latB, lonB = ballB.center
+    max_sigma = max(ballA.sigma, ballB.sigma)
+
+    lat_offset = (3 * max_sigma) / 111.0
+    lon_offset = (3 * max_sigma) / (111.0 * math.cos(math.radians((latA + latB) / 2.0) or 1.0))
+
+    lat_min = min(latA, latB) - lat_offset
+    lat_max = max(latA, latB) + lat_offset
+    lon_min = min(lonA, lonB) - lon_offset
+    lon_max = max(lonA, lonB) + lon_offset
+
+    lat_vals = np.linspace(lat_min, lat_max, resolution)
+    lon_vals = np.linspace(lon_min, lon_max, resolution)
+    lon_grid, lat_grid = np.meshgrid(lon_vals, lat_vals)
+
+    membershipA = np.zeros_like(lat_grid)
+    membershipB = np.zeros_like(lat_grid)
+    intersection = np.zeros_like(lat_grid)
+
+    for i in range(resolution):
+        for j in range(resolution):
+            coord = (lat_grid[i, j], lon_grid[i, j])
+            μA = ballA.membership(coord)
+            μB = ballB.membership(coord)
+            membershipA[i, j] = μA
+            membershipB[i, j] = μB
+            intersection[i, j] = min(μA, μB)
+
     plt.figure(figsize=(10, 8))
-    plt.contourf(X, Y, Z1, levels=20, cmap='Blues', alpha=0.5)
-    plt.contourf(X, Y, Z2, levels=20, cmap='Greens', alpha=0.5)
-   
-    # Direction vector
-    plt.quiver(ball1.center[0], ball1.center[1],
-              ball2.center[0]-ball1.center[0],
-              ball2.center[1]-ball1.center[1],
-              scale=100, color='red')
-   
-    plt.scatter(*ball1.center, c='blue', label='Point 1')
-    plt.scatter(*ball2.center, c='green', label='Point 2')
+    plt.contourf(lon_grid, lat_grid, membershipA, levels=50, cmap='Blues', alpha=0.4)
+    plt.contourf(lon_grid, lat_grid, membershipB, levels=50, cmap='Reds', alpha=0.4)
+    plt.contourf(lon_grid, lat_grid, intersection, levels=50, cmap='Greens', alpha=0.6)
+
+    plt.scatter([lonA], [latA], c='blue', label='Ball A Center')
+    plt.scatter([lonB], [latB], c='red', label='Ball B Center')
+
+    plt.title("Fuzzy Granular-Ball Membership and Intersection")
+    plt.xlabel("Longitude")
+    plt.ylabel("Latitude")
     plt.legend()
-    plt.title("Fuzzy Granular-Ball Spatial Relationship")
-    plt.xlabel("Latitude")
-    plt.ylabel("Longitude")
     plt.grid(True)
     plt.show()
 
 # Example usage
-result = analyze_spatial_relation(
-    lat1=37.5665, lon1=126.9780,  # Seoul
-    lat2=37.4563, lon2=126.7052,  # Suwon
-    uncertainty1=100, uncertainty2=150
-)
+if __name__ == "__main__":
+    # Sample coordinates (latitude, longitude)
+    points = [
+        (37.5665, 126.9780),  # Seoul
+        (37.5651, 126.9895),
+        (37.5700, 126.9820)
+    ]
 
-print("Spatial Relationship Result:")
-print(f"Bearing: {result['bearing']:.1f}°")
-print(f"OPRAm Directional Distribution: {result['op_ram_direction']}")
-print(f"RCC-8 Relation: {result['rcc8_relation']}")
-print(f"Distance: {result['distance_meters']/1000:.1f} km")
+    # Generate 2 fuzzy granular balls
+    balls = generate_fuzzy_granular_balls(points, n_clusters=2, sigma=0.5)
 
-ball1 = FuzzyGranularBall([37.5665, 126.9780], 100)
-ball2 = FuzzyGranularBall([37.4563, 126.7052], 150)
-visualize_relations(ball1, ball2)
+    # Compute membership score of a test point
+    test_point = (37.5675, 126.9810)
+    for i, ball in enumerate(balls):
+        μ = ball.membership(test_point)
+        print(f"Ball {i} membership of test point: {μ:.4f}")
+
+    # Compute fuzzy overlap between two balls
+    if len(balls) >= 2:
+        overlap = fuzzy_overlap(balls[0], balls[1])
+        print(f"Fuzzy overlap (containment) between Ball 0 and Ball 1: {overlap:.4f}")
+
+        # Qualitative direction from Ball 0 to Ball 1
+        direction = qualitative_direction(balls[0].center, balls[1].center)
+        print(f"Ball 1 is '{direction}' of Ball 0")
+
+        # Visualize the fuzzy regions
+        visualize_fuzzy_balls(balls[0], balls[1])
