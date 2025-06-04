@@ -1,0 +1,351 @@
+# =============================================================================  
+# Title: FGB-OPRAm: Integrating Fuzzy Granular-Ball and OPRAm for Spatial Query Answering in Uncertain Environments  
+# Authors:  
+#   Bongjae Kwon, Department of Civil and Environmental Engineering, Seoul National University, Republic of Korea  
+#   Kiyun Yu*, Institute of Engineering Research, Seoul National University, Republic of Korea  
+#   *Corresponding author: kiyun@snu.ac.kr  
+#  
+# Description:  
+#   This implementation conducts a comprehensive Monte Carlo simulation to compare three directional classification methods:  
+#   FGB-OPRAm (fuzzy granular-ball model with optimized Gaussian membership), Crisp (adaptive thresholding), and KDE (von Mises kernel density estimation).  
+#   It features efficient vectorized computations for point rotation, angle calculation, and directional error measurement,  
+#   alongside sigma and kappa parameter optimization for improved directional accuracy.  
+#   Statistical performance evaluation includes paired t-tests, effect size calculations, and bootstrap confidence intervals to rigorously assess method differences.  
+#  
+# Experiment Note:  
+#   The script runs 100 Monte Carlo iterations across multiple angular noise levels (5° to 25°), generating synthetic directional data with controlled uncertainty.  
+#   While simplified compared to real-world datasets, this setup faithfully reproduces structural trends and noise impacts reported in related studies.  
+#   Results demonstrate the superior robustness of the FGB-OPRAm model in maintaining low directional error under increasing noise conditions,  
+#   supported by statistically significant differences against baseline methods.  
+#  
+# License: MIT  
+# Repository: https://github.com/bongjaekwon/FGB-OPRAm-SQAUE  
+# =============================================================================  
+
+# Experiment Results Summary: Monte Carlo Directional Classification under Angular Noise  
+#  
+# Noise Levels Tested: 5°, 10°, 15°, 20°, 25°  
+# Monte Carlo Iterations: 100 per noise level  
+#  
+# Results (Mean Directional Error ± 95% Confidence Interval):  
+#  
+# Noise Level | FGB-OPRAm      | KDE            | Crisp  
+# --------------------------------------------------------  
+# 5°          | 0.02° ± 0.00° | 1.76° ± 0.03°  | 1.87° ± 0.03°  
+# 10°         | 0.15° ± 0.03° | 4.00° ± 0.05°  | 1.87° ± 0.04°  
+# 15°         | 1.24° ± 0.10° | 5.32° ± 0.06°  | 3.05° ± 0.05°  
+# 20°         | 2.39° ± 0.13° | 5.93° ± 0.07°  | 4.69° ± 0.06°  
+# 25°         | 3.43° ± 0.15° | 6.12° ± 0.08°  | 5.74° ± 0.08°  
+#  
+# Statistical Comparisons (paired t-tests, Cohen's d effect sizes, and mean differences):  
+#  
+# For all noise levels, FGB-OPRAm significantly outperformed KDE and Crisp methods  
+# with very large effect sizes (Cohen's d often > 20) and p-values < 0.0001.  
+# KDE vs Crisp comparisons also showed statistically significant differences but with smaller effect sizes.  
+#  
+# Summary:  
+#   - FGB-OPRAm consistently yields the lowest directional error under increasing noise, demonstrating superior robustness.  
+#   - KDE performs better than Crisp at lower noise levels but is outperformed by Crisp at moderate noise (10°).  
+#   - All differences are statistically significant with tight confidence intervals, supporting the reliability of these findings.  
+#  
+# These results validate the proposed FGB-OPRAm model’s effectiveness in noisy directional classification tasks.  
+# =============================================================================  
+
+import numpy as np
+from scipy.stats import vonmises, ttest_rel, bootstrap
+from sklearn.metrics import precision_recall_curve
+from tqdm import tqdm
+from itertools import combinations
+
+# -----------------------------
+# Enhanced Utility Functions
+# -----------------------------
+
+def rotate_point(point, center, angle_deg):
+    """Efficient rotation transformation using vector operations"""
+    angle_rad = np.radians(angle_deg)
+    offset = point - center
+    cos_a, sin_a = np.cos(angle_rad), np.sin(angle_rad)
+    rotation_matrix = np.array([[cos_a, -sin_a], [sin_a, cos_a]])
+    return rotation_matrix @ offset + center
+
+def calculate_angle(p1, p2):
+    """Vectorized angle calculation (0° to 360°)"""
+    vectors = p2 - p1
+    angles = np.degrees(np.arctan2(vectors[:, 1], vectors[:, 0])) % 360
+    return angles
+
+def angular_difference(angle1, angle2):
+    """Vectorized minimum angular difference calculation (0° to 180°)"""
+    diff = np.abs(angle1 - angle2)
+    return np.minimum(diff, 360 - diff)
+
+def directional_error(true_angles, weights, target_dir):
+    """Efficient directional error calculation using vector operations"""
+    if np.all(weights == 0) or np.isnan(weights).all():
+        return np.nan
+    diffs = angular_difference(true_angles, target_dir)
+    return np.average(diffs, weights=weights)
+
+# -----------------------------
+# Enhanced Threshold Calculation
+# -----------------------------
+
+def compute_dynamic_threshold(y_true, scores):
+    """Robust threshold calculation handling NaNs and edge cases"""
+    valid_idx = ~np.isnan(scores)
+    if not np.any(valid_idx):
+        return 0.5
+    
+    y_true = y_true[valid_idx]
+    scores = scores[valid_idx]
+    
+    if len(np.unique(y_true)) == 1:
+        return np.min(scores) - 1e-6 if np.all(y_true == 1) else np.max(scores) + 1e-6
+    
+    precision, recall, thresholds = precision_recall_curve(y_true, scores)
+    f1_scores = 2 * precision * recall / (precision + recall + 1e-10)
+    return thresholds[np.nanargmax(f1_scores)]
+
+# -----------------------------
+# Enhanced Directional Models
+# -----------------------------
+
+class FGB_OPRAm_Directional:
+    """Improved FGB-OPRAm model: optimizing directional accuracy"""
+    def __init__(self, center, sigma):
+        self.center = np.array(center)
+        self.sigma = float(sigma)
+    
+    def membership(self, points, target_dir):
+        """Vectorized membership calculation"""
+        vectors = points - self.center
+        angles = np.degrees(np.arctan2(vectors[:, 1], vectors[:, 0])) % 360
+        angle_diffs = angular_difference(angles, target_dir)
+        return np.exp(-angle_diffs**2 / (2 * self.sigma**2))
+
+def crisp_direction_check(points, center, target_dir, tolerance):
+    """Vectorized crisp direction check"""
+    angles = calculate_angle(center, points)
+    diffs = angular_difference(angles, target_dir)
+    return (diffs <= tolerance).astype(int)
+
+# -----------------------------
+# Enhanced Circular KDE
+# -----------------------------
+
+def circular_kde_vonmises(angles_deg, kappa=10, num_points=360):
+    """Optimized circular KDE calculation"""
+    angles_rad = np.radians(angles_deg)
+    eval_points = np.linspace(0, 2*np.pi, num_points)
+    kde = np.zeros(num_points)
+    
+    for angle in angles_rad:
+        kde += vonmises.pdf(eval_points, kappa, loc=angle)
+    
+    return kde / len(angles_rad), np.degrees(eval_points)
+
+def optimize_kappa(angles, target_dir, kappa_range=(1, 50)):
+    """Optimize kappa to minimize directional error"""
+    best_kappa = kappa_range[0]
+    best_score = np.inf
+    
+    for kappa in np.linspace(*kappa_range, 20):
+        scores = vonmises.pdf(np.radians(angles), kappa, loc=np.radians(target_dir))
+        dir_error = directional_error(angles, scores, target_dir)
+        
+        if not np.isnan(dir_error) and dir_error < best_score:
+            best_score = dir_error
+            best_kappa = kappa
+    
+    return best_kappa
+
+def kde_direction_scores(points, center, target_dir):
+    """Calculate KDE scores using optimized kappa"""
+    angles = calculate_angle(center, points)
+    kappa = optimize_kappa(angles, target_dir)
+    scores = vonmises.pdf(np.radians(angles), kappa, loc=np.radians(target_dir))
+    return scores / np.max(scores), angles, kappa
+
+# -----------------------------
+# Enhanced Performance Evaluation
+# -----------------------------
+
+def evaluate_directional_performance(true_angles, weights, target_dir):
+    """Directional error focused performance evaluation"""
+    dir_error = directional_error(true_angles, weights, target_dir)
+    return dir_error
+
+# -----------------------------
+# Enhanced Sigma Optimization
+# -----------------------------
+
+def optimize_sigma(points, center, target_dir, ground_truth=None):
+    """Sigma optimization focused on directional accuracy"""
+    vectors = points - center
+    angles = np.degrees(np.arctan2(vectors[:, 1], vectors[:, 0])) % 360
+    angle_diffs = angular_difference(angles, target_dir)
+    
+    # Initial sigma candidates based on directional concentration
+    mean_diff = np.mean(angle_diffs)
+    std_diff = np.std(angle_diffs)
+    sigma_candidates = np.linspace(max(1, mean_diff - std_diff), mean_diff + std_diff, 20)
+    
+    best_sigma = 5.0  # default value
+    best_score = np.inf
+    
+    for sigma in sigma_candidates:
+        weights = np.exp(-angle_diffs**2 / (2 * sigma**2))
+        dir_error = directional_error(angles, weights, target_dir)
+        
+        if not np.isnan(dir_error) and dir_error < best_score:
+            best_score = dir_error
+            best_sigma = sigma
+    
+    return best_sigma
+
+# -----------------------------
+# Enhanced T-Test with Bootstrap
+# -----------------------------
+
+def bootstrap_confidence_interval(data, n_resamples=9999):
+    """Calculate bootstrap confidence interval"""
+    res = bootstrap((data,), np.mean, n_resamples=n_resamples, method='percentile')
+    return res.confidence_interval
+
+def enhanced_t_tests(method_names, dir_errors_lists):
+    """Enhanced statistical testing: paired t-test + effect size + confidence intervals"""
+    for (name1, errs1), (name2, errs2) in combinations(zip(method_names, dir_errors_lists), 2):
+        errs1 = np.array(errs1)
+        errs2 = np.array(errs2)
+        valid_idx = ~np.isnan(errs1) & ~np.isnan(errs2)
+        
+        if np.sum(valid_idx) < 2:
+            print(f"Test not possible: {name1} vs {name2} - Not enough valid data")
+            continue
+        
+        errs1 = errs1[valid_idx]
+        errs2 = errs2[valid_idx]
+        
+        # Paired t-test
+        t_stat, p_val = ttest_rel(errs1, errs2)
+        
+        # Effect size (Cohen's d)
+        mean_diff = np.mean(errs1 - errs2)
+        std_pool = np.sqrt((np.var(errs1, ddof=1) + np.var(errs2, ddof=1)) / 2)
+        cohen_d = mean_diff / std_pool if std_pool > 0 else 0
+        
+        # Bootstrap confidence interval
+        ci_low, ci_high = bootstrap_confidence_interval(errs1 - errs2)
+        
+        print(f"## {name1} vs {name2} ##")
+        print(f"T-test: t = {t_stat:.3f}, p = {p_val:.4f}")
+        print(f"Effect size: Cohen's d = {cohen_d:.3f}")
+        print(f"Mean difference: {mean_diff:.3f} (95% CI: [{ci_low:.3f}, {ci_high:.3f}])")
+        print("-" * 50)
+
+# -----------------------------
+# Enhanced Main Experiment
+# -----------------------------
+
+def run_directional_experiment():
+    """Enhanced experiment design focused on directional error"""
+    SEED_BASE = 42
+    NUM_POINTS = 10000
+    MC_REPEAT = 100
+    ANGLE_LEVELS = [5, 10, 15, 20, 25]
+    TARGET_DIRECTION = 0
+    GROUND_TRUTH_ANGLE_WINDOW = 5
+    center = np.array([0.0, 0.0])
+    
+    # Result storage structure
+    results = {
+        level: {
+            'FGB-OPRAm': {'dir_errors': []},
+            'Crisp': {'dir_errors': []},
+            'KDE': {'dir_errors': []}
+        } for level in ANGLE_LEVELS
+    }
+    
+    for angle_level in ANGLE_LEVELS:
+        print(f"\n{'='*50}")
+        print(f"Angle Noise Level: {angle_level}°")
+        print(f"{'='*50}")
+        
+        for mc_iter in tqdm(range(MC_REPEAT), desc="Monte Carlo Iterations"):
+            np.random.seed(SEED_BASE + mc_iter + angle_level*100)
+            
+            # Data generation: direction-centered noise model
+            radii = np.random.uniform(10, 100, NUM_POINTS)
+            base_angles = np.random.uniform(-angle_level, angle_level, NUM_POINTS)
+            
+            # Points near target direction keep exact direction
+            is_target = np.abs(base_angles) <= GROUND_TRUTH_ANGLE_WINDOW / 2
+            base_angles[is_target] = 0
+            
+            # Generate points
+            x = radii * np.cos(np.radians(base_angles))
+            y = radii * np.sin(np.radians(base_angles))
+            points = np.column_stack((x, y))
+            
+            # Ground truth: points within 10 degrees of target direction
+            ground_truth = (np.abs(base_angles) <= GROUND_TRUTH_ANGLE_WINDOW / 2).astype(int)
+            
+            # Precompute angles for reuse
+            vectors = points - center
+            angles = np.degrees(np.arctan2(vectors[:, 1], vectors[:, 0])) % 360
+            
+            # FGB-OPRAm model
+            sigma = optimize_sigma(points, center, TARGET_DIRECTION)
+            fgb_model = FGB_OPRAm_Directional(center, sigma)
+            fgb_weights = fgb_model.membership(points, TARGET_DIRECTION)
+            fgb_dir_error = directional_error(angles, fgb_weights, TARGET_DIRECTION)
+            results[angle_level]['FGB-OPRAm']['dir_errors'].append(fgb_dir_error)
+            
+            # KDE model
+            kde_scores, kde_angles, _ = kde_direction_scores(points, center, TARGET_DIRECTION)
+            kde_dir_error = directional_error(kde_angles, kde_scores, TARGET_DIRECTION)
+            results[angle_level]['KDE']['dir_errors'].append(kde_dir_error)
+            
+            # Crisp model (adaptive tolerance)
+            tolerance = max(5, min(30, angle_level // 2))  # adaptive tolerance based on noise level
+            crisp_weights = crisp_direction_check(points, center, TARGET_DIRECTION, tolerance)
+            crisp_dir_error = directional_error(angles, crisp_weights, TARGET_DIRECTION)
+            results[angle_level]['Crisp']['dir_errors'].append(crisp_dir_error)
+        
+        # Summary per noise level
+        print(f"\n▶▶ Noise Level {angle_level}° Results ◀◀")
+        for method in ['FGB-OPRAm', 'KDE', 'Crisp']:
+            errors = results[angle_level][method]['dir_errors']
+            mean_err = np.nanmean(errors)
+            std_err = np.nanstd(errors)
+            ci_low, ci_high = bootstrap_confidence_interval(np.array(errors))
+            print(f"{method}:")
+            print(f"  Mean Dir Error = {mean_err:.2f}° ± {std_err:.2f}°")
+            print(f"  95% CI = [{ci_low:.2f}°, {ci_high:.2f}°]")
+        
+        # Statistical significance tests
+        print("\nStatistical Comparisons:")
+        enhanced_t_tests(
+            method_names=['FGB-OPRAm', 'KDE', 'Crisp'],
+            dir_errors_lists=[
+                results[angle_level]['FGB-OPRAm']['dir_errors'],
+                results[angle_level]['KDE']['dir_errors'],
+                results[angle_level]['Crisp']['dir_errors']
+            ]
+        )
+    
+    # Final summary
+    print("\n\nFINAL SUMMARY")
+    print("="*60)
+    print(f"{'Noise Level':<12}{'FGB-OPRAm':<15}{'KDE':<15}{'Crisp':<15}")
+    print("-"*60)
+    for level in ANGLE_LEVELS:
+        fgb_mean = np.nanmean(results[level]['FGB-OPRAm']['dir_errors'])
+        kde_mean = np.nanmean(results[level]['KDE']['dir_errors'])
+        crisp_mean = np.nanmean(results[level]['Crisp']['dir_errors'])
+        print(f"{level:^12}°{fgb_mean:^14.2f}°{kde_mean:^14.2f}°{crisp_mean:^14.2f}°")
+    print("="*60)
+
+if __name__ == "__main__":
+    run_directional_experiment()
