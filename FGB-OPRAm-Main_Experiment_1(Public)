@@ -52,18 +52,18 @@
 
 ## Statistical Significance Test (Paired t-test)
 
-| Noise Level | Comparison         | p-value | Significance  |
-|-------------|--------------------|---------|---------------|
-| 10          | FGB-OPRAm vs Crisp | <0.0001  | Significant   |
-| 10          | FGB-OPRAm vs KDE   | 0.0089  | Significant   |
-| 20          | FGB-OPRAm vs Crisp | <0.0001  | Significant   |
-| 20          | FGB-OPRAm vs KDE   | <0.0001  | Significant   |
-| 30          | FGB-OPRAm vs Crisp | <0.0001  | Significant   |
-| 30          | FGB-OPRAm vs KDE   | <0.0001  | Significant   |
-| 40          | FGB-OPRAm vs Crisp | <0.0001  | Significant   |
-| 40          | FGB-OPRAm vs KDE   | <0.0001  | Significant   |
-| 50          | FGB-OPRAm vs Crisp | <0.0001  | Significant   |
-| 50          | FGB-OPRAm vs KDE   | <0.0001  | Significant   |
+| Noise Level | Comparison         |  p-value | Significance |
+|-------------|--------------------|----------|--------------|
+| 10          | FGB-OPRAm vs Crisp | <0.0001  | Significant  |
+| 10          | FGB-OPRAm vs KDE   |  0.0089  | Significant  |
+| 20          | FGB-OPRAm vs Crisp | <0.0001  | Significant  |
+| 20          | FGB-OPRAm vs KDE   | <0.0001  | Significant  |
+| 30          | FGB-OPRAm vs Crisp | <0.0001  | Significant  |
+| 30          | FGB-OPRAm vs KDE   | <0.0001  | Significant  |
+| 40          | FGB-OPRAm vs Crisp | <0.0001  | Significant  |
+| 40          | FGB-OPRAm vs KDE   | <0.0001  | Significant  |
+| 50          | FGB-OPRAm vs Crisp | <0.0001  | Significant  |
+| 50          | FGB-OPRAm vs KDE   | <0.0001  | Significant  |
 
 - At all noise levels, the performance difference between FGB-OPRAm and the other models (Crisp, KDE) is statistically significant.  
 - The p-values being far below the 0.05 threshold strongly reject the null hypothesis that there is no difference between the models, thus confirming FGB-OPRAm’s superior performance.  
