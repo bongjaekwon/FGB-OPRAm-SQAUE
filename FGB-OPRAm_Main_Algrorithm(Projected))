@@ -15,32 +15,69 @@
 # Repository: https://github.com/bongjaekwon/FGB-OPRAm-SQAUE
 # =============================================================================
 
+import math
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.cluster.vq import kmeans2
-from pyproj import CRS, Transformer
-import math
+import tkinter as tk
+from tkinter.scrolledtext import ScrolledText
+
+# =============================================================================
+# Core Classes and Functions (using Projected Coordinates)
+# =============================================================================
 
 class GranularBall:
     """
-    Represents a fuzzy granular ball in projected (X, Y) coordinate space.
+    Represents a fuzzy granular ball with a Gaussian membership function
+    in a projected coordinate system. Each ball is centered at (x, y)
+    (e.g., meters), with spread sigma (same linear unit as x,y).
     """
+
     def __init__(self, center, sigma):
-        self.center = tuple(center)  # (x, y)
-        self.sigma = float(sigma)    # Gaussian spread in projected units (meters)
+        """
+        Args:
+            center: (x, y) tuple in projected units (e.g., meters).
+            sigma: Standard deviation of the Gaussian (same units, e.g., meters).
+        """
+        self.center = tuple(center)
+        self.sigma = float(sigma)
 
     def membership(self, coord):
         """
-        Compute Gaussian membership of a point based on Euclidean distance.
+        Compute the Gaussian membership of a coordinate relative to this ball
+        using planar Euclidean distance:
+            μ = exp(-d^2 / (2 * σ^2)).
+
+        Args:
+            coord: (x, y) tuple in projected units.
+        Returns:
+            membership value in [0.0, 1.0].
         """
-        dx = coord[0] - self.center[0]
-        dy = coord[1] - self.center[1]
-        dist = np.hypot(dx, dy)
-        return math.exp(-(dist ** 2) / (2 * self.sigma ** 2)) if self.sigma > 0 else 1.0
+        x1, y1 = self.center
+        x2, y2 = coord
+
+        dx = x2 - x1
+        dy = y2 - y1
+        d = math.hypot(dx, dy)  # Euclidean distance
+
+        if self.sigma > 0:
+            return math.exp(- (d ** 2) / (2 * self.sigma ** 2))
+        else:
+            return 1.0
+
 
 def generate_fuzzy_granular_balls(points, n_clusters, sigma=None):
     """
-    Cluster projected (X, Y) coordinates and return fuzzy granular balls.
+    Cluster the given projected points using K-means and create fuzzy granular balls.
+
+    Args:
+        points: list of (x, y) tuples, all in the same projected CRS.
+        n_clusters: number of granular balls (clusters) to generate.
+        sigma: fixed standard deviation for all balls (if None, estimate per cluster).
+
+    Returns:
+        List of GranularBall objects.
     """
     data = np.array(points, dtype=float)
     centroids, labels = kmeans2(data, n_clusters, minit='++')
@@ -50,139 +87,477 @@ def generate_fuzzy_granular_balls(points, n_clusters, sigma=None):
         cluster_points = data[labels == i]
         if len(cluster_points) == 0:
             continue
+
         if sigma is not None:
             sigma_i = sigma
         else:
-            dists = np.linalg.norm(cluster_points - center, axis=1)
-            sigma_i = np.std(dists)
-            sigma_i = max(sigma_i, 1e-6)
+            # Estimate sigma from Euclidean distances within the cluster
+            dists = []
+            for x, y in cluster_points:
+                dx = x - center[0]
+                dy = y - center[1]
+                dists.append(math.hypot(dx, dy))
+            sigma_i = float(np.std(dists))
+            sigma_i = max(sigma_i, 1e-6)  # Prevent sigma from being zero
+
         balls.append(GranularBall(center, sigma_i))
     return balls
 
-def fuzzy_overlap(ballA, ballB, resolution=100):
+
+def fuzzy_intersection_and_union(ballA, ballB, resolution=100):
     """
-    Compute fuzzy overlap (Jaccard index) between two balls.
+    Compute approximate intersection, union, and self-areas for two fuzzy granular balls
+    using a grid-based sampling approach in projected (x, y) space.
+
+    Returns:
+        intersection_value: ∑ min(μA, μB) * cell_area
+        union_value: ∑ max(μA, μB) * cell_area
+        areaA_value: ∑ μA * cell_area
+        areaB_value: ∑ μB * cell_area
     """
     xA, yA = ballA.center
     xB, yB = ballB.center
     max_sigma = max(ballA.sigma, ballB.sigma)
-    padding = 3 * max_sigma
 
-    x_min = min(xA, xB) - padding
-    x_max = max(xA, xB) + padding
-    y_min = min(yA, yB) - padding
-    y_max = max(yA, yB) + padding
+    # Define a bounding box that covers ±3σ around both centers
+    # in each axis (units: same as x, y)
+    x_min = min(xA, xB) - 3 * max_sigma
+    x_max = max(xA, xB) + 3 * max_sigma
+    y_min = min(yA, yB) - 3 * max_sigma
+    y_max = max(yA, yB) + 3 * max_sigma
 
+    # Create equally spaced sample coordinates
     x_vals = np.linspace(x_min, x_max, resolution)
     y_vals = np.linspace(y_min, y_max, resolution)
-    xx, yy = np.meshgrid(x_vals, y_vals)
+
+    # Grid cell dimensions (approximate) in projected units
+    dx = (x_max - x_min) / (resolution - 1)
+    dy = (y_max - y_min) / (resolution - 1)
+    cell_area = dx * dy  # area of each grid cell in projected units^2
 
     intersection = 0.0
     union = 0.0
-    cell_area = ((x_max - x_min) / resolution) * ((y_max - y_min) / resolution)
+    areaA = 0.0
+    areaB = 0.0
 
-    for i in range(resolution):
-        for j in range(resolution):
-            coord = (xx[i, j], yy[i, j])
-            μA = ballA.membership(coord)
-            μB = ballB.membership(coord)
+    for x in x_vals:
+        for y in y_vals:
+            μA = ballA.membership((x, y))
+            μB = ballB.membership((x, y))
             intersection += min(μA, μB) * cell_area
             union += max(μA, μB) * cell_area
+            areaA += μA * cell_area
+            areaB += μB * cell_area
 
+    return intersection, union, areaA, areaB
+
+
+def fuzzy_overlap(ballA, ballB, resolution=100):
+    """
+    Estimate fuzzy overlap between two granular balls and normalize to [0,1].
+
+    Returns:
+        overlap_value = intersection / union (or 0 if union is zero).
+    """
+    intersection, union, _, _ = fuzzy_intersection_and_union(ballA, ballB, resolution)
     return (intersection / union) if union > 0 else 0.0
 
-def qualitative_direction(a, b):
+
+def compute_fuzzy_rcc8(ballA, ballB, resolution=100, epsilon=1e-6):
     """
-    Return 8-direction compass direction from point a to point b in projected space.
+    Compute fuzzy RCC-8 memberships between two granular balls in projected space.
+    RCC-8 relations: DC, EC, PO, TPP, NTPP, EQ, TPPi, NTPPi.
+
+    Returns:
+        Dictionary of fuzzy memberships for each RCC-8 relation.
     """
-    dx = b[0] - a[0]
-    dy = b[1] - a[1]
+    intersection, union, areaA, areaB = fuzzy_intersection_and_union(ballA, ballB, resolution)
+
+    # Compute fuzzy inclusion: A ⊆ B and B ⊆ A
+    inclusionAtoB = intersection / areaA if areaA > 0 else 0.0
+    inclusionBtoA = intersection / areaB if areaB > 0 else 0.0
+
+    # EQ (Equal): both inclusions close to 1
+    eq_membership = min(inclusionAtoB, inclusionBtoA)
+
+    # TPP (Tangential Proper Part): A ⊂ B but not equal
+    tpp_membership = max(inclusionAtoB - eq_membership, 0.0)
+
+    # NTPP (Non-Tangential Proper Part): approximate as some fraction of TPP
+    ntpp_membership = tpp_membership * 0.5
+
+    # TPPi (Inverse of TPP): B ⊂ A but not equal
+    tppi_membership = max(inclusionBtoA - eq_membership, 0.0)
+
+    # NTPPi (Inverse of NTPP)
+    ntppi_membership = tppi_membership * 0.5
+
+    # PO (Partial Overlap): intersection but no inclusion
+    po_membership = max(intersection / (union + epsilon) - max(inclusionAtoB, inclusionBtoA), 0.0) if union > 0 else 0.0
+
+    # DC (Disconnected): intersection almost zero
+    dc_membership = 1.0 - (intersection / (union + epsilon))
+
+    # EC (Externally Connected): small intersection near boundaries
+    ec_membership = max(min(1.0 - intersection / (union + epsilon), min(inclusionAtoB, inclusionBtoA)), 0.0)
+
+    # Clip all memberships to [0,1]
+    rcc8 = {
+        'DC': min(max(dc_membership, 0.0), 1.0),
+        'EC': min(max(ec_membership, 0.0), 1.0),
+        'PO': min(max(po_membership, 0.0), 1.0),
+        'TPP': min(max(tpp_membership, 0.0), 1.0),
+        'NTPP': min(max(ntpp_membership, 0.0), 1.0),
+        'TPPi': min(max(tppi_membership, 0.0), 1.0),
+        'NTPPi': min(max(ntppi_membership, 0.0), 1.0),
+        'EQ': min(max(eq_membership, 0.0), 1.0)
+    }
+
+    return rcc8
+
+
+def qualitative_bearing(pointA, pointB):
+    """
+    Compute the bearing (in degrees) from pointA to pointB in projected space.
+    We assume the positive y-axis is 'north' and positive x-axis is 'east'.
+    Bearing is measured clockwise from north (0°).
+
+    Returns:
+        bearing between 0° and 360°, or None if points coincide.
+    """
+    x1, y1 = pointA
+    x2, y2 = pointB
+
+    dx = x2 - x1
+    dy = y2 - y1
+
     if dx == 0 and dy == 0:
+        return None  # Same point
+
+    # atan2(dx, dy) yields angle east of north
+    θ = math.atan2(dx, dy)  # dx is east offset, dy is north offset
+    bearing = (math.degrees(θ) + 360) % 360
+    return bearing
+
+
+def opram_direction(pointA, pointB, m):
+    """
+    Compute the OPRAm direction relation between two points with granularity m
+    in projected space. 360° is divided into 4m evenly sized sectors.
+    Return label "r{i}" where i ∈ {0, 1, ..., 4m−1}.
+
+    Args:
+        pointA: (x, y) reference point
+        pointB: (x, y) target point
+        m: granularity parameter (e.g., m=1 yields 4 directions, m=2 yields 8, etc.)
+
+    Returns:
+        relation_label: string "r{i}", or None if points coincide.
+    """
+    bearing = qualitative_bearing(pointA, pointB)
+    if bearing is None:
         return None
-    angle = (math.degrees(math.atan2(dy, dx)) + 360) % 360
-    directions = ['E', 'NE', 'N', 'NW', 'W', 'SW', 'S', 'SE']
-    index = int(((angle + 22.5) % 360) / 45)
-    return directions[index]
+
+    num_sectors = 4 * m
+    interval = 360.0 / num_sectors
+    # Add half an interval before flooring to center each sector
+    index = int(((bearing + (interval / 2.0)) % 360) // interval)
+    return f"r{index}"
+
+
+def opram_converse(relation_label, m):
+    """
+    Compute the converse (inverse) of an OPRAm relation.
+    converse(r_i) = r_{(i + 2m) mod (4m)}
+
+    Args:
+        relation_label: string "r{i}"
+        m: granularity parameter
+
+    Returns:
+        converse_label: string "r{j}", or None if input invalid.
+    """
+    if relation_label is None:
+        return None
+    try:
+        idx = int(relation_label[1:])
+    except (ValueError, IndexError):
+        return None
+
+    num_sectors = 4 * m
+    j = (idx + 2 * m) % num_sectors
+    return f"r{j}"
+
+
+def opram_composition(rel1, rel2, m):
+    """
+    Compute a simplified composition of two OPRAm relations.
+    A full implementation would use a precomputed composition table;
+    here we approximate by (i + j) mod 4m.
+
+    Args:
+        rel1: "r{i}"
+        rel2: "r{j}"
+        m: granularity parameter
+
+    Returns:
+        composed_rel: "r{k}" or None if invalid.
+    """
+    if rel1 is None or rel2 is None:
+        return None
+    try:
+        i = int(rel1[1:])
+        j = int(rel2[1:])
+    except (ValueError, IndexError):
+        return None
+
+    num_sectors = 4 * m
+    k = (i + j) % num_sectors
+    return f"r{k}"
+
+
+class SpatialQueryEngine:
+    """
+    Provides spatial query answering for multiple fuzzy granular balls,
+    integrating OPRAm direction and fuzzy RCC-8 topology—all in projected space.
+    """
+
+    def __init__(self, balls, m=2, grid_resolution=100):
+        """
+        Args:
+            balls: list of GranularBall objects
+            m: OPRAm granularity (default 2 → 8 directions)
+            grid_resolution: resolution for fuzzy RCC-8 and overlap computations
+        """
+        self.balls = balls
+        self.m = m
+        self.grid_resolution = grid_resolution
+
+    def get_opram_relation(self, idxA, idxB):
+        """
+        Compute the OPRAm direction between ball idxA and ball idxB.
+
+        Returns:
+            relation_label: "r{i}" or None
+        """
+        if idxA < 0 or idxA >= len(self.balls) or idxB < 0 or idxB >= len(self.balls):
+            return None
+        A = self.balls[idxA]
+        B = self.balls[idxB]
+        return opram_direction(A.center, B.center, self.m)
+
+    def get_rcc8_fuzzy(self, idxA, idxB):
+        """
+        Compute fuzzy RCC-8 memberships between ball idxA and ball idxB.
+
+        Returns:
+            Dictionary of RCC-8 memberships, or None if indices invalid.
+        """
+        if idxA < 0 or idxA >= len(self.balls) or idxB < 0 or idxB >= len(self.balls):
+            return None
+        A = self.balls[idxA]
+        B = self.balls[idxB]
+        return compute_fuzzy_rcc8(A, B, resolution=self.grid_resolution)
+
+    def describe_pair(self, idxA, idxB):
+        """
+        Generate a combined description (string) of OPRAm direction and
+        fuzzy RCC-8 topology for ball idxA versus ball idxB.
+
+        Returns:
+            A descriptive string in English.
+        """
+        if idxA < 0 or idxA >= len(self.balls) or idxB < 0 or idxB >= len(self.balls):
+            return "Index out of range."
+
+        A = self.balls[idxA]
+        B = self.balls[idxB]
+
+        # Compute OPRAm direction
+        dir_relation = opram_direction(A.center, B.center, self.m)
+        if dir_relation is None:
+            dir_desc = "Points coincide."
+        else:
+            dir_desc = f"OPRAm-{self.m} direction label: '{dir_relation}'."
+
+        # Compute fuzzy RCC-8
+        rcc8 = compute_fuzzy_rcc8(A, B, resolution=self.grid_resolution)
+        # Determine which relation has the highest membership
+        max_relation, max_value = max(rcc8.items(), key=lambda x: x[1])
+        topo_desc = f"Fuzzy RCC-8 top relation: '{max_relation}' with membership = {max_value:.4f}."
+
+        return f"Ball {idxB} relative to Ball {idxA}: {dir_desc} {topo_desc}"
+
+    def query_all_pairs(self):
+        """
+        Compute and return a list of descriptions for all ball pairs (i→j, i≠j).
+        """
+        descriptions = []
+        n = len(self.balls)
+        for i in range(n):
+            for j in range(n):
+                if i == j:
+                    continue
+                desc = self.describe_pair(i, j)
+                descriptions.append(f"[{i}→{j}] {desc}")
+        return descriptions
+
 
 def visualize_fuzzy_balls(ballA, ballB, resolution=200):
     """
-    Visualize fuzzy membership contours and intersection in 2D projected space.
+    Visualize two fuzzy granular balls and their intersection in 2D projected space.
     """
     xA, yA = ballA.center
     xB, yB = ballB.center
     max_sigma = max(ballA.sigma, ballB.sigma)
-    pad = 3 * max_sigma
 
-    x_min = min(xA, xB) - pad
-    x_max = max(xA, xB) + pad
-    y_min = min(yA, yB) - pad
-    y_max = max(yA, yB) + pad
+    # Bounding box ±3σ in projected units
+    x_min = min(xA, xB) - 3 * max_sigma
+    x_max = max(xA, xB) + 3 * max_sigma
+    y_min = min(yA, yB) - 3 * max_sigma
+    y_max = max(yA, yB) + 3 * max_sigma
 
     x_vals = np.linspace(x_min, x_max, resolution)
     y_vals = np.linspace(y_min, y_max, resolution)
-    xx, yy = np.meshgrid(x_vals, y_vals)
+    x_grid, y_grid = np.meshgrid(x_vals, y_vals)
 
-    membershipA = np.zeros_like(xx)
-    membershipB = np.zeros_like(xx)
-    intersection = np.zeros_like(xx)
+    membershipA = np.zeros_like(x_grid)
+    membershipB = np.zeros_like(x_grid)
+    intersection = np.zeros_like(x_grid)
 
     for i in range(resolution):
         for j in range(resolution):
-            pt = (xx[i, j], yy[i, j])
-            μA = ballA.membership(pt)
-            μB = ballB.membership(pt)
+            coord = (x_grid[i, j], y_grid[i, j])
+            μA = ballA.membership(coord)
+            μB = ballB.membership(coord)
             membershipA[i, j] = μA
             membershipB[i, j] = μB
             intersection[i, j] = min(μA, μB)
 
     plt.figure(figsize=(10, 8))
-    plt.contourf(xx, yy, membershipA, levels=50, cmap='Blues', alpha=0.4)
-    plt.contourf(xx, yy, membershipB, levels=50, cmap='Reds', alpha=0.4)
-    plt.contourf(xx, yy, intersection, levels=50, cmap='Greens', alpha=0.6)
-    plt.scatter([xA], [yA], color='blue', label='Ball A Center')
-    plt.scatter([xB], [yB], color='red', label='Ball B Center')
-    plt.xlabel("X (meters)")
-    plt.ylabel("Y (meters)")
-    plt.title("Fuzzy Granular-Balls in Projected Coordinate System")
+    plt.contourf(x_grid, y_grid, membershipA, levels=50, cmap='Blues', alpha=0.4)
+    plt.contourf(x_grid, y_grid, membershipB, levels=50, cmap='Reds', alpha=0.4)
+    plt.contourf(x_grid, y_grid, intersection, levels=50, cmap='Greens', alpha=0.6)
+
+    plt.scatter([xA], [yA], c='blue', label='Ball A Center')
+    plt.scatter([xB], [yB], c='red', label='Ball B Center')
+
+    plt.title("Fuzzy Granular-Ball Membership and Intersection (Projected CRS)")
+    plt.xlabel("X (projected units)")
+    plt.ylabel("Y (projected units)")
     plt.legend()
-    plt.axis("equal")
     plt.grid(True)
     plt.show()
 
-# Example usage
-if __name__ == "__main__":
-    # Define input in EPSG:4326 (lat/lon) and project to EPSG:5179 (Korean Transverse Mercator)
-    crs_from = CRS("EPSG:4326")      # WGS84 lat/lon
-    crs_to = CRS("EPSG:5179")        # Korea EPSG
-    transformer = Transformer.from_crs(crs_from, crs_to, always_xy=True)
 
-    # Example input: WGS84 coordinates
-    input_coords = [
-        (126.9780, 37.5665),  # Seoul City Hall
-        (126.9895, 37.5651),  # Near Myeongdong
-        (126.9820, 37.5700)   # Near Gwanghwamun
+# =============================================================================
+# GUI Helpers: redirect stdout to a Tkinter text widget
+# =============================================================================
+
+class StdoutRedirector:
+    """
+    A simple redirector that writes all stdout text into a Tkinter Text widget.
+    """
+
+    def __init__(self, text_widget):
+        self.text_widget = text_widget
+
+    def write(self, string):
+        # Insert the string into the text widget and scroll to the end
+        self.text_widget.insert(tk.END, string)
+        self.text_widget.see(tk.END)
+
+    def flush(self):
+        # No-op for compatibility
+        pass
+
+
+def run_spatial_example():
+    """
+    Example routine that generates granular balls, computes memberships, overlap,
+    OPRAm directions, RCC-8 relations, and prints them. All print statements
+    will appear in the GUI window because stdout has been redirected.
+    """
+    # -------------------------------------------------------------------------
+    # Sample projected coordinates (x, y). Replace with actual EPSG-based
+    # coordinates in your chosen projected CRS (e.g., meters).
+    # For demonstration, we use arbitrary points in a plane (units = meters).
+    # -------------------------------------------------------------------------
+    points = [
+        (500000.0, 200000.0),  # Example point A
+        (500500.0, 200100.0),  # Example point B
+        (499800.0, 200300.0),  # Example point C
+        (500200.0, 199800.0),  # Example point D
+        (500100.0, 200600.0)   # Example point E
     ]
 
-    # Convert to projected coordinates (X, Y in meters)
-    projected_points = [transformer.transform(lon, lat) for lon, lat in input_coords]
+    # Generate 2 fuzzy granular balls with fixed sigma = 300.0 (meters)
+    balls = generate_fuzzy_granular_balls(points, n_clusters=2, sigma=300.0)
 
-    # Generate fuzzy balls in projected space
-    balls = generate_fuzzy_granular_balls(projected_points, n_clusters=2, sigma=500)
-
-    # Print membership of test point
-    test_proj = transformer.transform(126.9810, 37.5675)
+    # Print ball centers and sigma values
     for i, ball in enumerate(balls):
-        μ = ball.membership(test_proj)
-        print(f"Ball {i} membership of test point: {μ:.4f}")
+        print(f"Ball {i}: Center = ({ball.center[0]:.2f}, {ball.center[1]:.2f}), "
+              f"σ = {ball.sigma:.2f} (projected units)")
 
-    # Compute overlap and direction
+    # Test membership of a specific point (also in projected units)
+    test_point = (500100.0, 200050.0)
+    for i, ball in enumerate(balls):
+        μ = ball.membership(test_point)
+        print(f"Ball {i} membership of test point = {μ:.4f}")
+
+    # Compute fuzzy overlap between Ball 0 and Ball 1
     if len(balls) >= 2:
-        overlap = fuzzy_overlap(balls[0], balls[1])
-        print(f"Fuzzy overlap between Ball 0 and Ball 1: {overlap:.4f}")
+        overlap_val = fuzzy_overlap(balls[0], balls[1], resolution=200)
+        print(f"Fuzzy overlap between Ball 0 and Ball 1 = {overlap_val:.4f}")
 
-        dir_str = qualitative_direction(balls[0].center, balls[1].center)
-        print(f"Ball 1 is '{dir_str}' of Ball 0")
+        # Compute OPRAm-2 (8-direction) relation from Ball 0 to Ball 1
+        direction_01 = opram_direction(balls[0].center, balls[1].center, m=2)
+        print(f"OPRAm-2 direction from Ball 0 to Ball 1: '{direction_01}'")
 
-        # Visualize
-        visualize_fuzzy_balls(balls[0], balls[1])
+        # Compute fuzzy RCC-8 relations between Ball 0 and Ball 1
+        rcc8_01 = compute_fuzzy_rcc8(balls[0], balls[1], resolution=200)
+        print("Fuzzy RCC-8 relations between Ball 0 and Ball 1:")
+        for rel, val in rcc8_01.items():
+            print(f"  {rel}: {val:.4f}")
 
+        # Show OPRAm converse and composition examples
+        converse_10 = opram_converse(direction_01, m=2)
+        composed_01_10 = opram_composition(direction_01, converse_10, m=2)
+        print(f"Converse of '{direction_01}' is '{converse_10}', "
+              f"composition gives '{composed_01_10}'")
+
+        # Launch a plot to visualize the two balls and their intersection
+        visualize_fuzzy_balls(balls[0], balls[1], resolution=200)
+
+    # Use the SpatialQueryEngine to output all pairwise relations
+    engine = SpatialQueryEngine(balls, m=2, grid_resolution=150)
+    all_relations = engine.query_all_pairs()
+    print("\nAll pairwise spatial relations:")
+    for desc in all_relations:
+        print(desc)
+
+
+def main():
+    """
+    Create a Tkinter window, redirect stdout to the text widget, and run the example.
+    """
+    root = tk.Tk()
+    root.title("FGB-OPRAm Spatial Reasoning Output (Projected CRS)")
+
+    # Create a ScrolledText widget for displaying print output
+    text_area = ScrolledText(root, wrap=tk.WORD, width=100, height=30)
+    text_area.pack(fill=tk.BOTH, expand=True)
+
+    # Redirect stdout and stderr to the text widget
+    sys.stdout = StdoutRedirector(text_area)
+    sys.stderr = StdoutRedirector(text_area)
+
+    # Run the spatial example after the GUI has started
+    root.after(100, run_spatial_example)
+
+    # Start the Tkinter main event loop
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
