@@ -7,6 +7,8 @@ This repository contains the implementation and experimental results of **FGB-OP
 
 Traditional approaches to spatial queries often assume precise locations, which is unrealistic in real-world applications involving noisy sensors, imprecise location reports, or vague spatial descriptions. FGB-OPRAm overcomes these limitations by modeling spatial objects as fuzzy regions using Gaussian membership functions and extending qualitative spatial reasoning with directional and topological relationships.
 
+https://pypi.org/project/fgb-opram/
+
 ---
 
 ## Key Concepts
